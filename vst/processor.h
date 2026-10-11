@@ -1,6 +1,7 @@
 #pragma once
 #include "public.sdk/source/vst/vstaudioeffect.h"
 #include "VoiceDSP.h"
+#include "ids.h"
 namespace Steinberg {
 class VMProcessor final:public Vst::AudioEffect {
 public:
