@@ -1,0 +1,17 @@
+name: DSP Foundation QA
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop/v1.0.0]
+    paths: [src/**, tests/**, CMakeLists.txt, .github/workflows/dsp-qa.yml]
+jobs:
+  dsp-foundation:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -A x64 -DBUILD_TESTING=ON
+      - name: Build
+        run: cmake --build build --config Release --parallel
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
