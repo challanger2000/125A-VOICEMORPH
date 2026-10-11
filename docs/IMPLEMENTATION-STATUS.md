@@ -11,3 +11,5 @@ All acoustic centers and gain curves are **EMPIRICALLY TUNED placeholders** pend
 No code here is approved for release. Do not report a VST3 or Steinberg Validator PASS.
 
 The C++ core has been locally compiled with CMake / GCC and its initial tests passed. Windows GitHub Actions status requires verification after commit.
+
+IR reference stage: bounded 4096-tap direct FIR, mono channel, control-thread setup, dry/wet logic and deterministic impulse tests. This is NOT the planned long-IR partitioned convolution and does NOT yet load WAVs or run in the plugin.
