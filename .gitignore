@@ -1,0 +1,12 @@
+/build/
+/out/
+/.vs/
+*.user
+*.suo
+*.pdb
+*.ilk
+*.obj
+*.exp
+*.lib
+*.vst3
+.DS_Store
