@@ -1,0 +1,20 @@
+name: VST3 Windows Build
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout pinned official VST3 SDK
+        shell: pwsh
+        run: |
+          git clone --branch v3.8.1_build_84 --depth 1 --recursive https://github.com/steinbergmedia/vst3sdk.git external/vst3sdk
+          $actual=(git -C external/vst3sdk rev-parse HEAD).Trim()
+          if ($actual -ne '3cdf9ca5d1f5b1b21e0a86832aa4abe55607bd96') { throw "Unexpected VST3 SDK SHA: $actual" }
+      - name: Configure
+        run: cmake -S . -B build -A x64 -DBUILD_VST3=ON -DVST3_SDK_ROOT="${{ github.workspace }}/external/vst3sdk" -DSMTG_CREATE_PLUGIN_LINK=OFF
+      - name: Compile
+        run: cmake --build build --config Release --target VoiceMorph --parallel
+      - name: Unit tests
+        run: ctest --test-dir build -C Release --output-on-failure

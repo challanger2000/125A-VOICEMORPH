@@ -10,3 +10,8 @@ if(BUILD_TESTING)
  target_link_libraries(test_voice PRIVATE voicemorph_dsp)
  add_test(NAME voice_foundation COMMAND test_voice)
 endif()
+
+option(BUILD_VST3 "Build the actual Steinberg VST3 wrapper" OFF)
+if(BUILD_VST3)
+ add_subdirectory(vst)
+endif()

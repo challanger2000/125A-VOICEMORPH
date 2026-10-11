@@ -1,0 +1,74 @@
+#include "processor.h"
+#include "ids.h"
+#include "base/source/fstreamer.h"
+#include "pluginterfaces/vst/ivstparameterchanges.h"
+#include <algorithm>
+#include <cmath>
+namespace Steinberg {
+VMProcessor::VMProcessor(){setControllerClass(kVMControllerUID);}
+tresult PLUGIN_API VMProcessor::initialize(FUnknown* context){
+ auto r=AudioEffect::initialize(context);if(r!=kResultOk)return r;
+ addAudioInput(STR16("Stereo In"),Vst::SpeakerArr::kStereo);
+ addAudioOutput(STR16("Stereo Out"),Vst::SpeakerArr::kStereo);
+ apply();return kResultOk;
+}
+void VMProcessor::apply() noexcept {
+ vm::Parameters p;
+ p.inputDb=(params[0]-.5f)*24.f;p.outputDb=(params[1]-.5f)*24.f;
+ p.denasal=params[2];p.chest=params[3];p.warmth=params[4];p.grit=params[5];
+ p.presence=params[6];p.compression=params[7];p.lowCut=params[8];
+ dsp[0].setParameters(p);dsp[1].setParameters(p);
+}
+tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
+ auto r=AudioEffect::setupProcessing(setup);
+ if(r==kResultOk){for(auto& d:dsp)d.prepare(setup.sampleRate);apply();}
+ return r;
+}
+tresult PLUGIN_API VMProcessor::canProcessSampleSize(int32 n){
+ return n==Vst::kSample32?kResultTrue:kResultFalse;
+}
+tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
+ if(data.inputParameterChanges){
+  auto* changes=data.inputParameterChanges;
+  for(int32 i=0;i<changes->getParameterCount();++i){
+   auto* q=changes->getParameterData(i);if(!q||q->getPointCount()<1)continue;
+   int32 offset=0;Vst::ParamValue value=0;
+   if(q->getPoint(q->getPointCount()-1,offset,value)!=kResultTrue)continue;
+   auto id=q->getParameterId();
+   if(id>=kInput&&id<=kBypass)params[id-kInput]=static_cast<float>(std::max(0.,std::min(1.,value)));
+  }
+  apply();
+ }
+ if(data.numSamples<=0||data.numInputs<1||data.numOutputs<1)return kResultOk;
+ auto& input=data.inputs[0];auto& output=data.outputs[0];
+ if(data.symbolicSampleSize!=Vst::kSample32)return kResultFalse;
+ const int32 channels=std::min({input.numChannels,output.numChannels,2});
+ for(int32 ch=0;ch<channels;++ch){
+  auto* src=input.channelBuffers32[ch];auto* dst=output.channelBuffers32[ch];
+  if(!src||!dst)continue;
+  if(params[kBypass-kInput]>=.5f){if(src!=dst)std::copy_n(src,data.numSamples,dst);}
+  else dsp[ch].process(src,dst,static_cast<std::size_t>(data.numSamples));
+ }
+ for(int32 ch=channels;ch<output.numChannels;++ch){
+  if(output.channelBuffers32[ch])std::fill_n(output.channelBuffers32[ch],data.numSamples,0.f);
+ }
+ output.silenceFlags=0;
+ return kResultOk;
+}
+tresult PLUGIN_API VMProcessor::getState(IBStream* stream){
+ if(!stream)return kResultFalse;
+ IBStreamer io(stream,kLittleEndian);
+ if(!io.writeInt32(1))return kResultFalse;
+ for(float p:params)if(!io.writeFloat(p))return kResultFalse;
+ return kResultOk;
+}
+tresult PLUGIN_API VMProcessor::setState(IBStream* stream){
+ if(!stream)return kResultFalse;
+ IBStreamer io(stream,kLittleEndian);int32 version=0;
+ if(!io.readInt32(version)||version!=1)return kResultFalse;
+ float next[kParameterCount]={};
+ for(float& p:next)if(!io.readFloat(p)||!std::isfinite(p))return kResultFalse;
+ for(int i=0;i<kParameterCount;++i)params[i]=vm::clamp(next[i],0,1);
+ apply();return kResultOk;
+}
+}
