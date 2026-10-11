@@ -28,3 +28,12 @@
 - Ensure plugin state recalls both IRs without relying on external paths.
 - Zoom 100% / 150%, Ctrl+click reset to true defaults, compliant editor lifecycle.
 - Existing 125A master logo is the sole branding source.
+
+## Input / output gain and metering
+- Dedicated INPUT and OUTPUT trim, each **-12 to +12 dB**, with **0.0 dB unity**; independent and host-automatable. Preserve headroom with floating-point processing and no implicit limiting.
+- INPUT trim before voice processing and both IR engines; OUTPUT trim after final wet/dry summing and dynamics, directly before output metering.
+- Real **input and output sample-peak meters**, sourced from actual audio buffers rather than knob values or GUI simulation; display calibrated dBFS and peak hold/clip indicators.
+- Input meters show the signal **after input gain**, so clipping-risk indications correspond to the signal sent into DSP. Output meters show the signal **after output gain**.
+- For stereo output, use independent L/R levels. For mono input, one input meter; mono/stereo bus support must keep channel labels truthful.
+- GUI meter updates must be decoupled from the realtime thread (lock-free/atomic bounded transfer); meters shall not be recorded as automatable parameters.
+- Verify at minimum silence, -18/-12/-6/0 dBFS tones, gain offsets, impulse/peak hold, clip reset, mono/stereo and input/output independence.

@@ -9,3 +9,5 @@
 7. Human listening gate: level-matched blind comparison of unprocessed and processed natural speech. Accept only if cinema/narration improvement comes without unacceptable robotic artifacts. User subjective approval required.
 
 No synthetic test, compiled binary, Validator outcome or sonic result exists yet.
+
+8. Gain/meter tests: +12/-12 dB transfer with tolerances, 0 dB unity, real mono input and stereo L/R output meters, peak hold/clip reset, gain placement, automation and editor lifecycle. Meter update must not block the audio thread.
