@@ -96,6 +96,11 @@ tresult PLUGIN_API VMController::initialize(FUnknown* context){
  parameters.addParameter(STR16("Mic IR Position"),nullptr,1,1,Vst::ParameterInfo::kCanAutomate,kMicPosition);
  parameters.addParameter(STR16("Mic IR Predelay"),STR16("ms"),0,0,Vst::ParameterInfo::kCanAutomate,kMicPredelay);
  parameters.addParameter(STR16("Reverb IR Predelay"),STR16("ms"),0,0,Vst::ParameterInfo::kCanAutomate,kReverbPredelay);
+ // Bipolar controls: at their actual defaults, Pitch 0 st and Formant 0 st.
+ parameters.addParameter(STR16("Pitch"),STR16("st"),0,2./3.,
+   Vst::ParameterInfo::kCanAutomate,kPitch);
+ parameters.addParameter(STR16("Formant"),STR16("st"),0,4./7.,
+   Vst::ParameterInfo::kCanAutomate,kFormant);
  parameters.addParameter(STR16("Input Peak L"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kInputPeakL);
  parameters.addParameter(STR16("Input Peak R"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kInputPeakR);
  parameters.addParameter(STR16("Output Peak L"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kOutputPeakL);
@@ -109,8 +114,8 @@ tresult PLUGIN_API VMController::initialize(FUnknown* context){
 tresult PLUGIN_API VMController::setComponentState(IBStream* stream){
  if(!stream)return kResultFalse;
  IBStreamer io(stream,kLittleEndian);int32 version=0;
- if(!io.readInt32(version)||(version<1||version>5))return kResultFalse;
- const int count=version==1?10:(version==2?14:(version==3?15:kParameterCount));
+ if(!io.readInt32(version)||(version<1||version>6))return kResultFalse;
+ const int count=version==1?10:(version==2?14:(version==3?15:(version<=5?17:kParameterCount)));
  for(int id=0;id<count;++id){
   float value=0;if(!io.readFloat(value)||!std::isfinite(value))return kResultFalse;
   setParamNormalized(kInput+id,value);
@@ -139,6 +144,15 @@ tresult PLUGIN_API VMController::getParamStringByValue(Vst::ParamID id,Vst::Para
   else if(id==kMicPredelay||id==kReverbPredelay)
    std::snprintf(display,sizeof(display),"%.0f ms",value*2000.);
   else std::snprintf(display,sizeof(display),"%s",value<.5?"PRE":"POST");
+  UString(string,128).fromAscii(display);
+  return kResultTrue;
+ }
+ if(id==kPitch||id==kFormant){
+  if(!std::isfinite(value))value=0.;
+  value=std::clamp(value,0.,1.);
+  char display[32];
+  const double semitones=id==kPitch?value*18.-12.:value*14.-8.;
+  std::snprintf(display,sizeof(display),"%+.1f st",semitones);
   UString(string,128).fromAscii(display);
   return kResultTrue;
  }

@@ -18,6 +18,8 @@
 <control-tag name="P114" tag="114"/>
 <control-tag name="P115" tag="115"/>
 <control-tag name="P116" tag="116"/>
+<control-tag name="P117" tag="117"/>
+<control-tag name="P118" tag="118"/>
 <control-tag name="LoadMic" tag="1000"/>
 <control-tag name="LoadRev" tag="1001"/>
 <control-tag name="ClearMic" tag="1002"/>
@@ -52,7 +54,11 @@
   <view class="CTextEdit" origin="447, 299" size="110, 25" control-tag="P108" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
   <view class="CTextLabel" origin="304, 377" size="138, 23" title="BYPASS" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
   <view class="CTextEdit" origin="447, 377" size="110, 25" control-tag="P109" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CTextLabel" origin="18, 469" size="540, 23" title="EDIT VALUES / HOST AUTOMATION" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
+  <view class="CTextLabel" origin="18, 445" size="138, 23" title="PITCH" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
+  <view class="CTextEdit" origin="161, 445" size="110, 25" control-tag="P117" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+  <view class="CTextLabel" origin="304, 445" size="138, 23" title="FORMANT" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
+  <view class="CTextEdit" origin="447, 445" size="110, 25" control-tag="P118" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+  <view class="CTextLabel" origin="18, 492" size="540, 23" title="EDIT VALUES / HOST AUTOMATION" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
   </view>
   <view class="CViewContainer" origin="632, 77" size="348, 520" background-color="Panel" transparent="false" sub-controller="IRLoader">
   <view class="CTextLabel" origin="16, 14" size="312, 23" title="DUAL IMPULSE RESPONSES" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>

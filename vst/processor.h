@@ -6,6 +6,7 @@
 #include "IRFileBuilder.h"
 #include "IRLoadInfo.h"
 #include "FixedLatencyIRChain.h"
+#include "PitchFormantDSP.h"
 #include <string>
 #include <memory>
 #include <cstdint>
@@ -33,13 +34,15 @@ public:
  tresult PLUGIN_API getState(IBStream*) SMTG_OVERRIDE;
  tresult PLUGIN_API setState(IBStream*) SMTG_OVERRIDE;
 private:
- float params[kParameterCount]={.5f,.5f,0,0,0,0,0,0,0,0,1,.25f,.3f,.25f,1.f,0.f,0.f};
+ float params[kParameterCount]={.5f,.5f,0,0,0,0,0,0,0,0,1,.25f,.3f,.25f,1.f,0.f,0.f,0.6666666667f,0.5714285714f};
  vm::VoiceDSP dsp[2];
  // Reserved dual IR stages. Unloaded stages are transparent, and never allocate in process().
  vm::StereoIRStage microphoneIR;
  vm::StereoIRStage reverbIR;
  vm::IRStageHandoff micHandoff,reverbHandoff;
  vm::FixedLatencyIRChain fixedIRChain;
+ vm::PitchFormantDSP pitchEngine;
+ std::atomic<uint32> totalLatencySamples{256};
  std::atomic<double> currentSampleRate{0.};
  std::thread irWorker;
  std::mutex irJobMutex;

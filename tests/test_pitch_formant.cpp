@@ -49,6 +49,9 @@ int main(){
  assert(fx.pitchSemitones()==-12); // bounded UI domain
  fx.setPitchSemitones(0);
  assert(fx.pitchSemitones()==0);
+ fx.setPitchSemitones(0.0000003f);
+ fx.setFormantSemitones(-0.0000008f);
+ assert(fx.pitchSemitones()==0.f&&fx.formantSemitones()==0.f);
  const auto original=render(0,0);
  const auto down=render(-12,0);
  const auto up=render(6,0);

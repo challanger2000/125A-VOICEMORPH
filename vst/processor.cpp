@@ -131,13 +131,18 @@ void VMProcessor::apply() noexcept {
  reverbIR.setWetLevel(params[kReverbLevel-kInput]*4.f);
  microphoneIR.setPredelayNormalized(params[kMicPredelay-kInput]);
  reverbIR.setPredelayNormalized(params[kReverbPredelay-kInput]);
+ pitchEngine.setPitchSemitones(params[kPitch-kInput]*18.f-12.f);
+ pitchEngine.setFormantSemitones(params[kFormant-kInput]*14.f-8.f);
 }
 tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
  auto r=AudioEffect::setupProcessing(setup);
  if(r==kResultOk){
   currentSampleRate.store(setup.sampleRate,std::memory_order_release);
   for(auto& d:dsp)d.prepare(setup.sampleRate);
-  microphoneIR.reset();reverbIR.reset();fixedIRChain.reset();apply();
+  if(!pitchEngine.prepare(setup.sampleRate))return kResultFalse;
+  fixedIRChain.preparePitchLatency(static_cast<std::size_t>(pitchEngine.latencySamples()));
+  totalLatencySamples.store(static_cast<uint32>(fixedIRChain.latencySamples()),std::memory_order_release);
+  microphoneIR.reset();reverbIR.reset();apply();
   // Invalidate IR stages prepared for any previous sample rate.
   auto clearMic=std::make_unique<vm::StereoIRStage>();
   auto clearRev=std::make_unique<vm::StereoIRStage>();
@@ -157,7 +162,7 @@ tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
  return r;
 }
 uint32 PLUGIN_API VMProcessor::getLatencySamples(){
- return static_cast<uint32>(vm::FixedLatencyIRChain::kLatency);
+ return totalLatencySamples.load(std::memory_order_acquire);
 }
 tresult PLUGIN_API VMProcessor::canProcessSampleSize(int32 n){
  return n==Vst::kSample32?kResultTrue:kResultFalse;
@@ -170,7 +175,7 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
    int32 offset=0;Vst::ParamValue value=0;
    if(q->getPoint(q->getPointCount()-1,offset,value)!=kResultTrue)continue;
    auto id=q->getParameterId();
-   if(id>=kInput&&id<=kReverbPredelay && std::isfinite(value))
+   if(id>=kInput&&id<=kFormant && std::isfinite(value))
     params[id-kInput]=static_cast<float>(std::clamp(value,0.,1.));
   }
   apply();
@@ -217,7 +222,7 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
   const float inR=channels>1?input.channelBuffers32[1][n]:0.f;
   float outL=0.f,outR=0.f;
   fixedIRChain.process(inL,inR,outL,outR,
-                       dsp[0],dsp[1],mic,rev,pre,bypass);
+                       dsp[0],dsp[1],mic,rev,pre,bypass,&pitchEngine);
   output.channelBuffers32[0][n]=outL;
   if(channels>1)output.channelBuffers32[1][n]=outR;
  }
@@ -286,7 +291,7 @@ bool readIRPath(IBStream* stream,std::string& path){
 tresult PLUGIN_API VMProcessor::getState(IBStream* stream){
  if(!stream)return kResultFalse;
  IBStreamer io(stream,kLittleEndian);
- if(!io.writeInt32(5))return kResultFalse;
+ if(!io.writeInt32(6))return kResultFalse;
  for(float p:params)if(!io.writeFloat(p))return kResultFalse;
  std::string mic,rev;
  {
@@ -298,12 +303,12 @@ tresult PLUGIN_API VMProcessor::getState(IBStream* stream){
 tresult PLUGIN_API VMProcessor::setState(IBStream* stream){
  if(!stream)return kResultFalse;
  IBStreamer io(stream,kLittleEndian);int32 version=0;
- if(!io.readInt32(version)||(version<1||version>5))return kResultFalse;
- float next[kParameterCount]={.5f,.5f,0,0,0,0,0,0,0,0,1,.25f,.3f,.25f,1.f,0.f,0.f};
- const int count=version==1?10:(version==2?14:(version==3?15:kParameterCount));
+ if(!io.readInt32(version)||(version<1||version>6))return kResultFalse;
+ float next[kParameterCount]={.5f,.5f,0,0,0,0,0,0,0,0,1,.25f,.3f,.25f,1.f,0.f,0.f,0.6666666667f,0.5714285714f};
+ const int count=version==1?10:(version==2?14:(version==3?15:(version<=5?17:kParameterCount)));
  for(int i=0;i<count;++i)if(!io.readFloat(next[i])||!std::isfinite(next[i]))return kResultFalse;
  std::string mic,rev;
- if(version==5&&(!readIRPath(stream,mic)||!readIRPath(stream,rev)))return kResultFalse;
+ if(version>=5&&(!readIRPath(stream,mic)||!readIRPath(stream,rev)))return kResultFalse;
  for(int i=0;i<kParameterCount;++i)params[i]=vm::clamp(next[i],0,1);
  apply();
  {

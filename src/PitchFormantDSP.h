@@ -1,5 +1,5 @@
 #pragma once
-// Independent non-AI spectral pitch/formant experiment, not yet in VST3 signal path.
+// Non-AI spectral stereo pitch/formant engine; configured off the audio thread.
 // Signalsmith Stretch and Linear are MIT licensed; license notices under third_party/.
 #include "third_party/signalsmith-stretch.h"
 #include <algorithm>
@@ -32,6 +32,7 @@ public:
  void setPitchSemitones(float semitones) {
   if(!std::isfinite(semitones))return;
   semitones=std::clamp(semitones,-12.f,6.f);
+  if(std::fabs(semitones)<1.e-4f)semitones=0.f;
   if(semitones==pitchSemitones_)return;
   pitchSemitones_=semitones;
   if(ready_)engine_.setTransposeSemitones(semitones);
@@ -39,6 +40,7 @@ public:
  void setFormantSemitones(float semitones) {
   if(!std::isfinite(semitones))return;
   semitones=std::clamp(semitones,-8.f,6.f);
+  if(std::fabs(semitones)<1.e-4f)semitones=0.f;
   if(semitones==formantSemitones_)return;
   formantSemitones_=semitones;
   if(ready_)engine_.setFormantSemitones(semitones,true);
