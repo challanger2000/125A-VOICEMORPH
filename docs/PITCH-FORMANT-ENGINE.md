@@ -84,3 +84,16 @@ This fixture addresses the missing loaded-IR CPU case. Timing on shared
 CI remains diagnostic; real Windows DAW p99/deadline QA is still required.
 The synthesized densely populated IRs are *not* a substitute for licensed
 real microphone, reverb and vocal recordings in the final listening tests.
+
+## Host block-size burst-load diagnostic
+
+The dense 700 ms dual-IR profile now runs with DAW-style block sizes
+**16, 32, 64, 128, 256 and 512 samples at both 48 and 96 kHz**.
+Because the internal uniform FFT partition is 128 samples, the computation
+cost is expected to be **unevenly distributed** across very short callbacks.
+Per-configuration p95/p99/max and measured callbacks exceeding the physical
+block deadline are recorded. These are **diagnostics rather than a PASS/FAIL
+CPU gate on shared CI**. C++ allocations in the callback remain a hard FAIL.
+Before claiming realtime safety, run paced host/audio torture and address
+small-block deadline misses without introducing audible timing errors or
+unreported latency.

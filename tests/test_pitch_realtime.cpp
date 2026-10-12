@@ -36,7 +36,8 @@ void operator delete[](void* ptr,std::size_t) noexcept {std::free(ptr);}
 
 namespace {
 using Clock=std::chrono::steady_clock;
-constexpr int kBlock=128;
+constexpr int kInputPeriod=128;
+constexpr int kMaxBlock=512;
 constexpr int kBlocks=540;
 constexpr float kPi=3.14159265358979323846f;
 struct Metrics {
@@ -64,7 +65,8 @@ vm::WaveIR makeDenseIR(int rate,int durationMs,bool trueStereo){
  }
  return wave;
 }
-Metrics profile(int rate,bool dense=false) {
+Metrics profile(int rate,bool dense=false,int blockSize=128) {
+ assert(blockSize>=16&&blockSize<=kMaxBlock);
  vm::PitchFormantDSP spectral;
  assert(spectral.prepare(rate));
  spectral.setPitchSemitones(-8.f);
@@ -91,20 +93,21 @@ Metrics profile(int rate,bool dense=false) {
  assert(chain.latencySamples()==static_cast<std::size_t>(spectral.latencySamples())+256);
  const auto latency=chain.latencySamples();
  assert(latency>=256&&latency<30000);
- std::array<float,kBlock> a{},b{};
- for(int i=0;i<kBlock;++i){
-  const float p=2.f*kPi*i*183.f/static_cast<float>(rate);
+ std::array<float,kMaxBlock> a{},b{};
+ for(int i=0;i<kMaxBlock;++i){
+  const float p=2.f*kPi*(i%kInputPeriod)*183.f/static_cast<float>(rate);
   a[i]=.13f*std::sin(p)+.05f*std::sin(2.f*p);
   b[i]=.13f*std::sin(p+.42f)+.05f*std::sin(2.f*p+.42f);
  }
  // Pre-roll all spectral internal buffers, then enable C++ heap monitoring.
  for(int n=0;n<rate;++n){
   float l=0,r=0;
-  chain.process(a[n%kBlock],b[n%kBlock],l,r,
+  chain.process(a[n%kMaxBlock],b[n%kMaxBlock],l,r,
                 left,right,micPtr,revPtr,true,false,&spectral);
   assert(std::isfinite(l)&&std::isfinite(r));
  }
- const int blocks=dense?180:kBlocks;
+ // Sample small-buffer FFT spikes over enough completed partitions.
+ const int blocks=dense?(blockSize<128?512:180):kBlocks;
  std::vector<double> durations;
  durations.reserve(blocks);
  gAllocations.store(0,std::memory_order_relaxed);
@@ -117,7 +120,7 @@ Metrics profile(int rate,bool dense=false) {
    spectral.setFormantSemitones(low?-6.f:4.f);
   }
   float lastL=0,lastR=0;
-  for(int n=0;n<kBlock;++n){
+  for(int n=0;n<blockSize;++n){
    chain.process(a[n],b[n],lastL,lastR,left,right,micPtr,revPtr,
                  true,block%91>=75,&spectral);
   }
@@ -127,7 +130,7 @@ Metrics profile(int rate,bool dense=false) {
   durations.push_back(std::chrono::duration<double,std::micro>(end-start).count());
  }
  const auto allocations=gAllocations.load(std::memory_order_relaxed);
- const double deadlineUs=kBlock*1.e6/static_cast<double>(rate);
+ const double deadlineUs=blockSize*1.e6/static_cast<double>(rate);
  const int overruns=static_cast<int>(std::count_if(durations.begin(),durations.end(),
                             [deadlineUs](double us){return us>deadlineUs;}));
  const double meanUs=std::accumulate(durations.begin(),durations.end(),0.0)/durations.size();
@@ -153,12 +156,14 @@ int main(){
    return 1;
   }
  }
- // Realistic worst-case convolution density is deliberately a separate
- // measured profile, not silently conflated with IR-free CPU usage.
+ // Dense true-stereo IRs are measured at multiple *host* block sizes:
+ // the uniform 128-sample FFT kernel has burst costs that 128-sample
+ // averages can hide. Do not use these GitHub runner values as DAW proof.
  for(const int rate:{48000,96000}){
-  const Metrics m=profile(rate,true);
+  for(const int block:{16,32,64,128,256,512}){
+  const Metrics m=profile(rate,true,block);
   std::cout<<"pitch-rt rate="<<rate
-           <<" ir=700ms true-stereo-mic+stereo-reverb block=128 frames, "
+           <<" ir=700ms true-stereo-mic+stereo-reverb block="<<block<<" frames, "
            <<"mean="<<m.meanUs<<"us p95="<<m.p95Us<<"us p99="<<m.p99Us
            <<"us max="<<m.maxUs<<"us deadline="<<m.deadlineUs
            <<"us overruns="<<m.overruns<<" cpp_allocations="<<m.allocations
@@ -166,6 +171,7 @@ int main(){
   if(m.allocations!=0){
    std::cerr<<"FAIL: dense IR callback made C++ heap allocations\n";
    return 1;
+  }
   }
  }
  std::cout<<"pitch-rt C++ allocation-free callback PASS\n";
