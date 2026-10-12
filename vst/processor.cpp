@@ -16,7 +16,7 @@ VMProcessor::~VMProcessor(){
  {
   std::lock_guard<std::mutex> lock(irJobMutex);
   stopIRWorker=true;
-  hasIRJob=false;
+  hasMicJob=hasReverbJob=false;
  }
  irJobWake.notify_one();
  if(irWorker.joinable())irWorker.join();
@@ -25,9 +25,10 @@ VMProcessor::~VMProcessor(){
 void VMProcessor::queueIRJob(std::string path,bool mic){
  {
   std::lock_guard<std::mutex> lock(irJobMutex);
-  irJobPath=std::move(path);
-  irJobIsMic=mic;
-  hasIRJob=true;
+  // Each IR slot has its own coalescing queue. A mic update cannot
+  // inadvertently discard a pending reverb update (or vice versa).
+  if(mic){micJobPath=std::move(path);hasMicJob=true;}
+  else{reverbJobPath=std::move(path);hasReverbJob=true;}
  }
  irJobWake.notify_one();
 }
@@ -37,11 +38,12 @@ void VMProcessor::irWorkerLoop(){
   bool mic=false;
   {
    std::unique_lock<std::mutex> lock(irJobMutex);
-   irJobWake.wait(lock,[this]{return stopIRWorker||hasIRJob;});
+   irJobWake.wait(lock,[this]{return stopIRWorker||hasMicJob||hasReverbJob;});
    if(stopIRWorker)return;
-   path=std::move(irJobPath);
-   mic=irJobIsMic;
-   hasIRJob=false;
+   mic=hasMicJob&&(!hasReverbJob||preferMicJob);
+   if(mic){path=std::move(micJobPath);hasMicJob=false;}
+   else{path=std::move(reverbJobPath);hasReverbJob=false;}
+   preferMicJob=!mic;
   }
   std::string error;
   if(mic)loadMicIRFromFileControl(path,error);

@@ -43,9 +43,9 @@ private:
  std::mutex irJobMutex;
  std::condition_variable irJobWake;
  bool stopIRWorker=false;
- bool hasIRJob=false;
- bool irJobIsMic=false;
- std::string irJobPath;
+ bool hasMicJob=false,hasReverbJob=false;
+ std::string micJobPath,reverbJobPath;
+ bool preferMicJob=true;
  void irWorkerLoop();
  void queueIRJob(std::string path,bool mic);
  void apply() noexcept;
