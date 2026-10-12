@@ -10,6 +10,7 @@ int main(){
  std::vector<float> taps(600);
  for(int i=0;i<600;++i)taps[i]=.2f*std::exp(-i/110.f)*std::cos(i*.12f);
  assert(fft.prepare(taps));
+ assert(fft.partitionCount()==5&&fft.activePartitionCount()==5);
  std::vector<float> x(2048),ref(2048);
  x[0]=1;x[99]=.4f;x[256]=-.3f;
  for(int n=0;n<2048;++n)
@@ -21,5 +22,19 @@ int main(){
  }
  fft.reset();
  for(int n=0;n<512;++n)assert(std::abs(fft.processSample(0))<1e-6f);
+ // Sparse IR: only three populated partitions out of 300 should consume MACs.
+ std::vector<float> sparse(128*300,0.f);
+ sparse[0]=.75f;sparse[128*111]=-.25f;sparse[128*299]=.125f;
+ assert(fft.prepare(sparse));
+ assert(fft.ready()&&fft.partitionCount()==300&&fft.activePartitionCount()==3);
+ for(int n=0;n<static_cast<int>(sparse.size())+140;++n){
+  const float got=fft.processSample(n==0?1.f:0.f);
+  const float expected=(n>=128&&n-128<static_cast<int>(sparse.size()))?sparse[n-128]:0.f;
+  assert(std::fabs(got-expected)<.00015f);
+ }
+ // A silent impulse still produces a valid delayed zero response.
+ assert(fft.prepare(std::vector<float>(1024,0.f)));
+ assert(fft.ready()&&fft.partitionCount()==8&&fft.activePartitionCount()==0);
+ for(int n=0;n<300;++n)assert(std::fabs(fft.processSample(n==0?1.f:0.f))<1e-6f);
  std::cout<<"Partitioned IR FFT reference PASS\n";
 }

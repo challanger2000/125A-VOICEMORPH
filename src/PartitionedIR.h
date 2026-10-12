@@ -33,6 +33,7 @@ class PartitionedIR {
   if(inverse)for(auto& v:a)v/=static_cast<float>(N);
  }
  std::vector<std::vector<C>> H_,history_;
+ std::vector<std::size_t> partitionOffsets_;
  std::vector<C> scratch_,freq_;
  std::vector<float> overlap_,incoming_,out_;
  std::size_t head_=0,fill_=0,read_=0;
@@ -42,19 +43,36 @@ public:
   if(impulse.empty()||impulse.size()>maximum)return false;
   for(float x:impulse)if(!std::isfinite(x))return false;
   auto partitions=(impulse.size()+B-1)/B;
-  std::vector<std::vector<C>> nextH(partitions,std::vector<C>(N));
+  // Keep the delay history for the entire IR but only transform and
+  // multiply partitions containing nonzero coefficients. This dramatically
+  // reduces work for sparse IRs and avoids storing silent frequency responses.
+  std::vector<std::vector<C>> nextH;
+  std::vector<std::size_t> nextOffsets;
+  nextH.reserve(partitions);
+  nextOffsets.reserve(partitions);
   for(std::size_t p=0;p<partitions;++p){
-   for(std::size_t i=0;i<B&&p*B+i<impulse.size();++i)nextH[p][i]=C(impulse[p*B+i],0);
-   transform(nextH[p],false);
+   const std::size_t start=p*B;
+   const std::size_t end=std::min(start+B,impulse.size());
+   bool nonzero=false;
+   for(std::size_t i=start;i<end;++i)
+    if(impulse[i]!=0.f){nonzero=true;break;}
+   if(!nonzero)continue;
+   std::vector<C> taps(N,C{});
+   for(std::size_t i=start;i<end;++i)taps[i-start]=C(impulse[i],0);
+   transform(taps,false);
+   nextH.push_back(std::move(taps));
+   nextOffsets.push_back(p);
   }
   std::vector<std::vector<C>> nextHistory(partitions,std::vector<C>(N));
-  H_.swap(nextH);history_.swap(nextHistory);
+  H_.swap(nextH);history_.swap(nextHistory);partitionOffsets_.swap(nextOffsets);
   scratch_.assign(N,C{});freq_.assign(N,C{});
   overlap_.assign(B,0.f);incoming_.assign(B,0.f);out_.assign(B,0.f);
   head_=fill_=read_=0;
   return true;
  }
- bool ready()const noexcept{return !H_.empty();}
+ bool ready()const noexcept{return !history_.empty();}
+ std::size_t activePartitionCount()const noexcept{return H_.size();}
+ std::size_t partitionCount()const noexcept{return history_.size();}
  void reset() noexcept {
   for(auto& h:history_)std::fill(h.begin(),h.end(),C{});
   std::fill(overlap_.begin(),overlap_.end(),0.f);
@@ -73,9 +91,10 @@ public:
    transform(scratch_,false);
    history_[head_]=scratch_;
    std::fill(freq_.begin(),freq_.end(),C{});
-   for(std::size_t p=0;p<H_.size();++p){
-    auto& h=history_[(head_+H_.size()-p)%H_.size()];
-    for(std::size_t k=0;k<N;++k)freq_[k]+=H_[p][k]*h[k];
+   const auto historySize=history_.size();
+   for(std::size_t i=0;i<H_.size();++i){
+    auto& h=history_[(head_+historySize-partitionOffsets_[i])%historySize];
+    for(std::size_t k=0;k<N;++k)freq_[k]+=H_[i][k]*h[k];
    }
    transform(freq_,true);
    for(std::size_t i=0;i<B;++i){

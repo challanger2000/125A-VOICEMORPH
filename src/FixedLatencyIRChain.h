@@ -2,6 +2,7 @@
 #include "IRStage.h"
 #include "VoiceDSP.h"
 #include <array>
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 namespace vm {
@@ -22,6 +23,7 @@ public:
 class FixedLatencyIRChain {
  StereoFixedDelay<128> micEmpty_,reverbEmpty_;
  StereoFixedDelay<256> absoluteBypass_;
+ float bypassAmount_=0.f;
  static void stage(StereoIRStage* ir,StereoFixedDelay<128>& empty,
                    float& l,float& r) noexcept {
   float plainL=0,plainR=0;
@@ -31,7 +33,7 @@ class FixedLatencyIRChain {
  }
 public:
  static constexpr std::size_t kLatency=256;
- void reset() noexcept {micEmpty_.reset();reverbEmpty_.reset();absoluteBypass_.reset();}
+ void reset() noexcept {micEmpty_.reset();reverbEmpty_.reset();absoluteBypass_.reset();bypassAmount_=0.f;}
  void process(float l,float r,float& outL,float& outR,
               VoiceDSP& left,VoiceDSP& right,
               StereoIRStage* mic,StereoIRStage* reverb,
@@ -40,13 +42,18 @@ public:
   if(!std::isfinite(r))r=0;
   float bypassL=0,bypassR=0;
   absoluteBypass_.process(l,r,bypassL,bypassR);
-  if(bypass){outL=bypassL;outR=bypassR;return;}
+  // Keep the processing history advancing during bypass so IR tails and
+  // filter state do not jump when bypass is released. Smooth both edges
+  // over 128 samples without changing the fixed 256-sample host latency.
+  constexpr float step=1.f/128.f;
+  bypassAmount_=std::clamp(bypassAmount_+(bypass?step:-step),0.f,1.f);
   if(microphonePre)stage(mic,micEmpty_,l,r);
   l=left.processSample(l);
   r=right.processSample(r);
   if(!microphonePre)stage(mic,micEmpty_,l,r);
   stage(reverb,reverbEmpty_,l,r);
-  outL=l;outR=r;
+  outL=l*(1.f-bypassAmount_)+bypassL*bypassAmount_;
+  outR=r*(1.f-bypassAmount_)+bypassR*bypassAmount_;
  }
 };
 }

@@ -41,5 +41,29 @@ int main(){
   assert(std::fabs(l-(n==256?1.f:0.f))<1e-4f);
   assert(std::fabs(r-(n==256?.25f:0.f))<1e-4f);
  }
+ // Toggle bypass during a running signal. Processing is kept warm;
+ // crossfades prevent full-scale jumps at the toggle boundaries.
+ chain.reset();left.prepare(48000);right.prepare(48000);
+ vm::Parameters elevated;elevated.outputDb=12.f;
+ left.setParameters(elevated);right.setParameters(elevated);
+ mic.reset();rev.reset();
+ float before=0,enter=0,full=0,exit=0,after=0;
+ for(int n=0;n<1450;++n){
+  float l=0,r=0;
+  const bool bypass=n>=500&&n<900;
+  chain.process(.2f,.2f,l,r,left,right,&mic,&rev,true,bypass);
+  if(n==499)before=l;
+  if(n==500)enter=l;
+  if(n==650)full=l;
+  if(n==900)exit=l;
+  if(n==1040)after=l;
+  assert(std::isfinite(l)&&std::isfinite(r));
+ }
+ const float wet=.2f*vm::gain(12.f);
+ assert(std::fabs(before-wet)<.002f);
+ assert(std::fabs(full-.2f)<.002f);
+ assert(enter<before && enter>full);
+ assert(exit>full && exit<after);
+ assert(std::fabs(after-wet)<.002f);
  std::cout<<"Constant VST3 dual-IR latency PASS\n";
 }

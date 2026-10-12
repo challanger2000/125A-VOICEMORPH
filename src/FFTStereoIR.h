@@ -3,6 +3,7 @@
 #include "IRResampler.h"
 #include "PartitionedIR.h"
 #include <array>
+#include <algorithm>
 #include <vector>
 #include <cmath>
 #include <utility>
@@ -38,16 +39,28 @@ public:
    for(float sample:channel)if(!std::isfinite(sample))return false;
   // Only validated IRs reach the prepared convolution engines.
   std::array<PartitionedIR,4> replacement;
-  for(int i=0;i<4;++i)if(!replacement[i].prepare(taps[i],static_cast<std::size_t>(hostRate*30.0)))return false;
+  for(int i=0;i<4;++i){
+   const bool hasEnergy=std::any_of(taps[i].begin(),taps[i].end(),
+                                   [](float v){return v!=0.f;});
+   if(hasEnergy && !replacement[i].prepare(taps[i],
+            static_cast<std::size_t>(hostRate*30.0)))return false;
+  }
   path_=std::move(replacement);
   loaded_=true;return true;
  }
  bool ready()const noexcept{return loaded_;}
+ std::size_t activePathCount()const noexcept {
+  std::size_t count=0;for(const auto& p:path_)if(p.ready())++count;return count;
+ }
  void reset() noexcept {for(auto& p:path_)p.reset();}
  void process(float l,float r,float& outL,float& outR) noexcept {
   if(!loaded_){outL=l;outR=r;return;}
-  outL=path_[0].processSample(l)+path_[2].processSample(r);
-  outR=path_[1].processSample(l)+path_[3].processSample(r);
+  // Unused crossfeed channels must contribute zero, not pass-through audio.
+  const float ll=path_[0].ready()?path_[0].processSample(l):0.f;
+  const float lr=path_[1].ready()?path_[1].processSample(l):0.f;
+  const float rl=path_[2].ready()?path_[2].processSample(r):0.f;
+  const float rr=path_[3].ready()?path_[3].processSample(r):0.f;
+  outL=ll+rl;outR=lr+rr;
  }
  std::size_t latencySamples()const noexcept{return loaded_?PartitionedIR::latencySamples():0;}
 };
