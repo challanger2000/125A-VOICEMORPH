@@ -1,6 +1,7 @@
 #pragma once
 #include "public.sdk/source/vst/vstaudioeffect.h"
 #include "VoiceDSP.h"
+#include "FFTStereoIR.h"
 #include "ids.h"
 namespace Steinberg {
 class VMProcessor final:public Vst::AudioEffect {
@@ -16,6 +17,9 @@ public:
 private:
  float params[kParameterCount]={.5f,.5f,0,0,0,0,0,0,0,0};
  vm::VoiceDSP dsp[2];
+ // Reserved dual IR stages. Unloaded stages are transparent, and never allocate in process().
+ vm::FFTStereoIR microphoneIR;
+ vm::FFTStereoIR reverbIR;
  void apply() noexcept;
 };
 }

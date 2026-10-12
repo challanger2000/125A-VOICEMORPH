@@ -21,7 +21,7 @@ void VMProcessor::apply() noexcept {
 }
 tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
  auto r=AudioEffect::setupProcessing(setup);
- if(r==kResultOk){for(auto& d:dsp)d.prepare(setup.sampleRate);apply();}
+ if(r==kResultOk){for(auto& d:dsp)d.prepare(setup.sampleRate);microphoneIR.reset();reverbIR.reset();apply();}
  return r;
 }
 tresult PLUGIN_API VMProcessor::canProcessSampleSize(int32 n){
@@ -43,11 +43,35 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
  auto& input=data.inputs[0];auto& output=data.outputs[0];
  if(data.symbolicSampleSize!=Vst::kSample32)return kResultFalse;
  const int32 channels=std::min({input.numChannels,output.numChannels,2});
- for(int32 ch=0;ch<channels;++ch){
-  auto* src=input.channelBuffers32[ch];auto* dst=output.channelBuffers32[ch];
-  if(!src||!dst)continue;
-  if(params[kBypass-kInput]>=.5f){if(src!=dst)std::copy_n(src,data.numSamples,dst);}
-  else dsp[ch].process(src,dst,static_cast<std::size_t>(data.numSamples));
+ // Stereo IR stages run on post-voice samples. Unloaded stages are identity.
+ // Two passes are deliberately conditional: there is no added latency until an IR is loaded.
+ if(channels==2 && params[kBypass-kInput]<.5f && microphoneIR.ready() && reverbIR.ready()) {
+  for(int32 n=0;n<data.numSamples;++n) {
+   const float left=dsp[0].processSample(input.channelBuffers32[0][n]);
+   const float right=dsp[1].processSample(input.channelBuffers32[1][n]);
+   float micL=0,micR=0,revL=0,revR=0;
+   microphoneIR.process(left,right,micL,micR);
+   reverbIR.process(micL,micR,revL,revR);
+   output.channelBuffers32[0][n]=revL;
+   output.channelBuffers32[1][n]=revR;
+  }
+ } else if(channels==2 && params[kBypass-kInput]<.5f && (microphoneIR.ready() || reverbIR.ready())) {
+  for(int32 n=0;n<data.numSamples;++n) {
+   float left=dsp[0].processSample(input.channelBuffers32[0][n]);
+   float right=dsp[1].processSample(input.channelBuffers32[1][n]);
+   float l=left,r=right;
+   if(microphoneIR.ready()){microphoneIR.process(l,r,left,right);l=left;r=right;}
+   if(reverbIR.ready()){reverbIR.process(l,r,left,right);l=left;r=right;}
+   output.channelBuffers32[0][n]=l;
+   output.channelBuffers32[1][n]=r;
+  }
+ } else {
+  for(int32 ch=0;ch<channels;++ch){
+   auto* src=input.channelBuffers32[ch];auto* dst=output.channelBuffers32[ch];
+   if(!src||!dst)continue;
+   if(params[kBypass-kInput]>=.5f){if(src!=dst)std::copy_n(src,data.numSamples,dst);}
+   else dsp[ch].process(src,dst,static_cast<std::size_t>(data.numSamples));
+  }
  }
  for(int32 ch=channels;ch<output.numChannels;++ch){
   if(output.channelBuffers32[ch])std::fill_n(output.channelBuffers32[ch],data.numSamples,0.f);
