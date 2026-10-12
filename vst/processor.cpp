@@ -80,9 +80,10 @@ bool VMProcessor::loadMicIRFromFileControl(const std::string& path,std::string& 
  error.clear();return true;
 }
 bool VMProcessor::loadReverbIRFromFileControl(const std::string& path,std::string& error){
- if(currentSampleRate<8000.){error="Audio processing is not configured";return false;}
+ const double sampleRate=currentSampleRate.load(std::memory_order_acquire);
+ if(sampleRate<8000.){error="Audio processing is not configured";return false;}
  reverbHandoff.reclaimControl();
- auto prepared=vm::IRFileBuilder::load(path,currentSampleRate,0,error);
+ auto prepared=vm::IRFileBuilder::load(path,sampleRate,0,error);
  if(!prepared)return false;
  if(!publishReverbIR(prepared)){error="Previous reverb IR still pending";return false;}
  error.clear();return true;
