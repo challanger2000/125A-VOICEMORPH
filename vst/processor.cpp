@@ -36,10 +36,10 @@ void VMProcessor::queueIRJob(std::string path,bool mic){
   std::lock_guard<std::mutex> lock(irJobMutex);
   // Each slot coalesces independently; the latest selection is authoritative.
   if(mic){
-   micJobPath=std::move(path);hasMicJob=true;++micRevision;
+   micJobPath=std::move(path);micJobSource.reset();hasMicJob=true;++micRevision;
    micIRStatus.store(1);micIRError.store(0);
   }else{
-   reverbJobPath=std::move(path);hasReverbJob=true;++reverbRevision;
+   reverbJobPath=std::move(path);reverbJobSource.reset();hasReverbJob=true;++reverbRevision;
    reverbIRStatus.store(1);reverbIRError.store(0);
   }
  }
@@ -48,6 +48,7 @@ void VMProcessor::queueIRJob(std::string path,bool mic){
 void VMProcessor::irWorkerLoop(){
  for(;;){
   std::string path;
+  vm::SharedIRSource storedSource;
   bool mic=false;
   std::uint64_t revision=0;
   {
@@ -55,24 +56,44 @@ void VMProcessor::irWorkerLoop(){
    irJobWake.wait(lock,[this]{return stopIRWorker||hasMicJob||hasReverbJob;});
    if(stopIRWorker)return;
    mic=hasMicJob&&(!hasReverbJob||preferMicJob);
-   if(mic){path=std::move(micJobPath);hasMicJob=false;revision=micRevision;}
-   else{path=std::move(reverbJobPath);hasReverbJob=false;revision=reverbRevision;}
+   if(mic){
+    path=std::move(micJobPath);
+    storedSource=std::move(micJobSource);
+    hasMicJob=false;revision=micRevision;
+   }else{
+    path=std::move(reverbJobPath);
+    storedSource=std::move(reverbJobSource);
+    hasReverbJob=false;revision=reverbRevision;
+   }
    preferMicJob=!mic;
   }
   const double sampleRate=currentSampleRate.load(std::memory_order_acquire);
   std::string error;
   std::unique_ptr<vm::StereoIRStage> prepared;
-  if(path.empty())prepared=std::make_unique<vm::StereoIRStage>();
-  else if(sampleRate>=8000.&&sampleRate<=384000.)
-   prepared=vm::IRFileBuilder::load(path,sampleRate,0,error);
+  vm::SharedIRSource loadedSource=storedSource;
+  if(path.empty()&&!storedSource){
+   prepared=std::make_unique<vm::StereoIRStage>();
+  }else if(sampleRate>=8000.&&sampleRate<=384000.){
+   if(storedSource){
+    vm::WaveIR wave;
+    if(vm::decodeWave(storedSource->data(),storedSource->size(),wave,error,
+                      vm::kMaxEmbeddedIRBytes)){
+     prepared=std::make_unique<vm::StereoIRStage>();
+     if(!prepared->prepare(wave,sampleRate)){
+      error="Cannot prepare embedded IR for host sample rate";
+      prepared.reset();
+     }
+    }
+   }else prepared=vm::IRFileBuilder::load(path,sampleRate,0,error,&loadedSource);
+  }else error="Unsupported host sample rate";
   {
    std::lock_guard<std::mutex> lock(irJobMutex);
    if(stopIRWorker)return;
    if(revision!=(mic?micRevision:reverbRevision))continue; // stale result
    if(!path.empty()&&sampleRate!=currentSampleRate.load(std::memory_order_acquire)){
     // Host has changed sample rate during preparation: retry with current rate.
-    if(mic){micJobPath=path;hasMicJob=true;}
-    else{reverbJobPath=path;hasReverbJob=true;}
+    if(mic){micJobPath=path;micJobSource=storedSource;hasMicJob=true;}
+    else{reverbJobPath=path;reverbJobSource=storedSource;hasReverbJob=true;}
     irJobWake.notify_one();
     continue;
    }
@@ -81,13 +102,15 @@ void VMProcessor::irWorkerLoop(){
      micHandoff.reclaimControl();
      micHandoff.publishLatest(prepared);
      micStatePath=path;
-     micIRStatus.store(path.empty()?0:2,std::memory_order_release);
+     micStateSource=std::move(loadedSource);
+     micIRStatus.store(path.empty()&&!micStateSource?0:2,std::memory_order_release);
      micIRError.store(0,std::memory_order_release);
     }else{
      reverbHandoff.reclaimControl();
      reverbHandoff.publishLatest(prepared);
      reverbStatePath=path;
-     reverbIRStatus.store(path.empty()?0:2,std::memory_order_release);
+     reverbStateSource=std::move(loadedSource);
+     reverbIRStatus.store(path.empty()&&!reverbStateSource?0:2,std::memory_order_release);
      reverbIRError.store(0,std::memory_order_release);
     }
    }else{
@@ -164,10 +187,10 @@ tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
    auto clearRev=std::make_unique<vm::StereoIRStage>();
    micHandoff.publishLatest(clearMic);
    reverbHandoff.publishLatest(clearRev);
-   micJobPath=micStatePath;hasMicJob=true;++micRevision;
-   reverbJobPath=reverbStatePath;hasReverbJob=true;++reverbRevision;
-   micIRStatus.store(micStatePath.empty()?0:1);
-   reverbIRStatus.store(reverbStatePath.empty()?0:1);
+   micJobPath=micStatePath;micJobSource=micStateSource;hasMicJob=true;++micRevision;
+   reverbJobPath=reverbStatePath;reverbJobSource=reverbStateSource;hasReverbJob=true;++reverbRevision;
+   micIRStatus.store(micStatePath.empty()&&!micStateSource?0:1);
+   reverbIRStatus.store(reverbStatePath.empty()&&!reverbStateSource?0:1);
    micIRError.store(0);reverbIRError.store(0);
   }
   irJobWake.notify_one();
@@ -405,29 +428,70 @@ bool readIRPath(IBStream* stream,std::string& path){
  path=std::move(next);return true;
 }
 }
+namespace {
+// State-v7 chunk: uint32 little-endian length, uint32 CRC32, original WAV bytes.
+// This is not an audio callback operation. Check lengths BEFORE allocation.
+bool writeIRPayload(IBStream* stream,const vm::SharedIRSource& source){
+ vm::IRBlobHeader header;
+ if(!vm::prepareIRBlobHeader(source,header))return false;
+ int32 actual=0;
+ auto write=[&](void* ptr,int32 count){
+  return stream->write(ptr,count,&actual)==kResultOk&&actual==count;
+ };
+ if(!write(&header.size,4)||!write(&header.checksum,4))return false;
+ if(header.size){
+  return write(const_cast<std::uint8_t*>(source->data()),
+               static_cast<int32>(header.size));
+ }
+ return true;
+}
+bool readIRPayload(IBStream* stream,vm::SharedIRSource& output){
+ vm::IRBlobHeader header{};
+ int32 actual=0;
+ auto read=[&](void* ptr,int32 count){
+  return stream->read(ptr,count,&actual)==kResultOk&&actual==count;
+ };
+ if(!read(&header.size,4)||!read(&header.checksum,4)||
+    header.size>vm::kMaxEmbeddedIRBytes)return false;
+ vm::IRSourceBytes bytes(header.size);
+ if(header.size&&!read(bytes.data(),static_cast<int32>(header.size)))return false;
+ if(!vm::validateIRBlob(header,bytes))return false;
+ if(header.size)output=std::make_shared<const vm::IRSourceBytes>(std::move(bytes));
+ else output.reset();
+ return true;
+}
+}
 tresult PLUGIN_API VMProcessor::getState(IBStream* stream){
  if(!stream)return kResultFalse;
  IBStreamer io(stream,kLittleEndian);
- if(!io.writeInt32(6))return kResultFalse;
+ if(!io.writeInt32(7))return kResultFalse;
  float save[kParameterCount]{};
  stateMailbox.snapshot(save);
  for(float p:save)if(!io.writeFloat(p))return kResultFalse;
  std::string mic,rev;
+ vm::SharedIRSource micSource,revSource;
  {
   std::lock_guard<std::mutex> lock(irJobMutex);
   mic=micStatePath;rev=reverbStatePath;
+  micSource=micStateSource;revSource=reverbStateSource;
  }
- return writeIRPath(stream,mic)&&writeIRPath(stream,rev)?kResultOk:kResultFalse;
+ return writeIRPath(stream,mic)&&writeIRPath(stream,rev)&&
+        writeIRPayload(stream,micSource)&&writeIRPayload(stream,revSource)
+        ?kResultOk:kResultFalse;
 }
 tresult PLUGIN_API VMProcessor::setState(IBStream* stream){
  if(!stream)return kResultFalse;
  IBStreamer io(stream,kLittleEndian);int32 version=0;
- if(!io.readInt32(version)||(version<1||version>6))return kResultFalse;
+ if(!io.readInt32(version)||(version<1||version>7))return kResultFalse;
  float next[kParameterCount]={.5f,.5f,0,0,0,0,0,0,0,0,1,.25f,.3f,.25f,1.f,0.f,0.f,0.6666666667f,0.5714285714f};
  const int count=version==1?10:(version==2?14:(version==3?15:(version<=5?17:kParameterCount)));
  for(int i=0;i<count;++i)if(!io.readFloat(next[i])||!std::isfinite(next[i]))return kResultFalse;
  std::string mic,rev;
+ vm::SharedIRSource micSource,revSource;
  if(version>=5&&(!readIRPath(stream,mic)||!readIRPath(stream,rev)))return kResultFalse;
+ if(version>=7&&(!readIRPayload(stream,micSource)||!readIRPayload(stream,revSource)))
+  return kResultFalse;
+ // Validate entire state before changing live IR jobs or parameters.
  for(int i=0;i<kParameterCount;++i)next[i]=vm::clamp(next[i],0,1);
  stateMailbox.publish(next);
  {
@@ -439,10 +503,13 @@ tresult PLUGIN_API VMProcessor::setState(IBStream* stream){
   micHandoff.publishLatest(clearMic);
   reverbHandoff.publishLatest(clearRev);
   micStatePath=mic;reverbStatePath=rev;
-  micIRStatus.store(mic.empty()?0:1);reverbIRStatus.store(rev.empty()?0:1);
+  micStateSource=micSource;reverbStateSource=revSource;
+  micIRStatus.store(mic.empty()&&!micSource?0:1);
+  reverbIRStatus.store(rev.empty()&&!revSource?0:1);
   micIRError.store(0);reverbIRError.store(0);
   hasMicJob=hasReverbJob=true;
   micJobPath=mic;reverbJobPath=rev;
+  micJobSource=std::move(micSource);reverbJobSource=std::move(revSource);
   ++micRevision;++reverbRevision;
  }
  irJobWake.notify_one();

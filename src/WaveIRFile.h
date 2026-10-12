@@ -1,5 +1,6 @@
 #pragma once
 #include "WaveIR.h"
+#include "IRStateBlob.h"
 #include <cstdint>
 #include <fstream>
 #include <filesystem>
@@ -10,7 +11,8 @@
 namespace vm {
 // File I/O and decoding are CONTROL-THREAD-ONLY. Never invoke in audio process().
 inline bool loadWaveIRFile(const std::string& path,WaveIR& target,std::string& error,
-                           std::size_t maxBytes=256ull*1024*1024) {
+                           std::size_t maxBytes=256ull*1024*1024,
+                           SharedIRSource* sourceBytes=nullptr) {
  if(path.empty()){error="Empty WAV path";return false;}
  // VSTGUI supplies UTF-8. u8path also handles non-ASCII Windows filenames.
  try {
@@ -25,7 +27,9 @@ inline bool loadWaveIRFile(const std::string& path,WaveIR& target,std::string& e
  if(!file.read(reinterpret_cast<char*>(bytes.data()),static_cast<std::streamsize>(bytes.size()))){
   error="Cannot read entire IR file";return false;
  }
- return decodeWave(bytes.data(),bytes.size(),target,error,maxBytes);
+ if(!decodeWave(bytes.data(),bytes.size(),target,error,maxBytes))return false;
+ if(sourceBytes)*sourceBytes=std::make_shared<const IRSourceBytes>(std::move(bytes));
+ return true;
  } catch(const std::exception&) {error="Invalid IR path or file access failure";return false;}
 }
 }

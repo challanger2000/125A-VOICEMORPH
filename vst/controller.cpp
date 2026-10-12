@@ -114,7 +114,7 @@ tresult PLUGIN_API VMController::initialize(FUnknown* context){
 tresult PLUGIN_API VMController::setComponentState(IBStream* stream){
  if(!stream)return kResultFalse;
  IBStreamer io(stream,kLittleEndian);int32 version=0;
- if(!io.readInt32(version)||(version<1||version>6))return kResultFalse;
+ if(!io.readInt32(version)||(version<1||version>7))return kResultFalse;
  const int count=version==1?10:(version==2?14:(version==3?15:(version<=5?17:kParameterCount)));
  // Fully validate before modifying the visible controller state. Older
  // projects must reset new Pitch/Formant controls (and missing IR params)

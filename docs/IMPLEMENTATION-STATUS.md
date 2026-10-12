@@ -15,7 +15,7 @@ Verified as of Windows Actions run 38288695940: 47/47 VST3 Validator tests, 22/2
 1. Validated GUI master visuals and Studio One attach/open/close/reopen/zoom, host text edits and IR file selection.
 2. Natural speaking-voice listening and acoustic metrics (sibilants, breath, formant coloration, consonants, noisy/unvoiced portions).
 3. Full 125A Plugin Tester and host torture (PDC, offline render, latency, small buffers, channel routing, sample rate changes).
-4. IR project portability: v6 saves the IR **file path**, not self-contained audio data; unavailable files cannot be recalled on another machine.
+4. IR project portability: new state v7 embeds original WAV bytes, validates lengths and CRC32, and re-prepares IRs on the background thread. Implementation requires CI confirmation and practical Studio One save/move/reopen testing. Legacy v5-v6 path-only sessions still depend on their source WAVs.
 5. Safe audible transitions during IR swaps and automation, long IR memory limits, error recovery and full preset lifetime tests.
 6. Full release packaging, license/demo implementation where required, installer and QA handoff.
 

@@ -2,6 +2,7 @@
 #include "WaveIRFile.h"
 #include "IRStage.h"
 #include <memory>
+#include "IRStateBlob.h"
 #include <cmath>
 #include <string>
 namespace vm {
@@ -12,7 +13,7 @@ class IRFileBuilder {
 public:
  static std::unique_ptr<StereoIRStage> load(
   const std::string& path,double sampleRate,std::size_t predelay,
-  std::string& error) {
+  std::string& error,SharedIRSource* originalBytes=nullptr) {
   if(!std::isfinite(sampleRate)||sampleRate<8000.||sampleRate>384000.){
    error="Unsupported host sample rate";return {};
   }
@@ -20,11 +21,13 @@ public:
    error="Predelay exceeds two seconds";return {};
   }
   WaveIR wave;
-  if(!loadWaveIRFile(path,wave,error))return {};
+  SharedIRSource source;
+  if(!loadWaveIRFile(path,wave,error,kMaxEmbeddedIRBytes,originalBytes?&source:nullptr))return {};
   auto stage=std::make_unique<StereoIRStage>();
   if(!stage->prepare(wave,sampleRate,predelay)){
    error="Cannot prepare IR for host sample rate";return {};
   }
+  if(originalBytes)*originalBytes=std::move(source);
   error.clear();return stage;
  }
 };

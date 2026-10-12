@@ -212,3 +212,26 @@ runs, both at neutral and with pitched/formanted spectral processing, then
 checks output differences and invalid/oversized sample sanitization.
 Actual host negotiation at kSample64 and offline bounce still require
 Windows VST3 host testing.
+
+## Portable VST3 IR project state v7
+
+State v7 appends two separate embedded chunks (MIC, REVERB) to the existing
+v6 format after the path strings. Each chunk contains a bounded original
+WAV byte count (uint32), CRC32 (uint32) and the exact original RIFF WAV bytes.
+The original recording sample rate is retained: the worker thread resamples
+and prepares convolution for the *current host rate* on every restore.
+This avoids losing an IR if a previous absolute file path is absent on
+another computer. With an embedded payload, the path is informational; only
+v5-v6 path-only sessions need to access it to rebuild the IR. Old state
+versions remain readable.
+
+The maximum source WAV chunk per slot is 256 MiB, matching the existing
+WAV loader limit. State reading checks the stored size before allocating,
+rejects missing/truncated chunks, invalid RIFF/WAVE headers and CRC failures
+before publishing *any* restored parameters or IR jobs. A successful load
+replaces the stored original bytes atomically with its IR stage on the worker
+thread; the UI/audio thread never performs file I/O, decoding or FFT setup.
+The state saver snapshots shared references to both IR sources while holding
+the existing control mutex only briefly, then writes outside that lock.
+IR swaps still require a real-host listening/click test; checksum validation
+does not establish audible smoothness.

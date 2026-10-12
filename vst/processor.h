@@ -4,6 +4,7 @@
 #include "IRStage.h"
 #include "IRStageHandoff.h"
 #include "IRFileBuilder.h"
+#include "IRStateBlob.h"
 #include "IRLoadInfo.h"
 #include "FixedLatencyIRChain.h"
 #include "PitchFormantDSP.h"
@@ -56,6 +57,8 @@ private:
  bool hasMicJob=false,hasReverbJob=false;
  std::string micJobPath,reverbJobPath;
  std::string micStatePath,reverbStatePath;
+ vm::SharedIRSource micJobSource,reverbJobSource;
+ vm::SharedIRSource micStateSource,reverbStateSource;
  bool preferMicJob=true;
  std::atomic<int32_t> micIRStatus{0},reverbIRStatus{0}; // empty/loading/ready/error
  std::atomic<int32_t> micIRError{0},reverbIRError{0};
