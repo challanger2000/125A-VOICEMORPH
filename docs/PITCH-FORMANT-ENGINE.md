@@ -150,3 +150,24 @@ count for the array constructed inside a background lambda. This is required
 for the pinned MSVC toolchain, and prevents an invalid non-constant template
 argument. It also tests that multiple unconsumed project restores deliver
 only the latest complete vector to the next audio block.
+
+## Physical-unit text editing and legacy state restoration
+
+All 19 writable parameters now format to and parse from the same physical
+values: gain in dB, effect amounts in %, low-cut Hz/OFF, bypass ON/OFF,
+mic placement PRE/POST, predelay in ms, and pitch/formant in semitones.
+The VST3 `getParamValueByString()` now converts edited display text back into
+normalized parameters and rejects invalid units, NaN, infinities and
+out-of-range values rather than silently changing a control. The parser also
+accepts decimal commas for German numeric entry.
+
+For controller restores, v1–v5 project parameters are first loaded and
+validated into a complete staging array with documented defaults. The
+controller then applies the vector in one pass, so a failed state read cannot
+leave half the visible controls changed and loading an older preset resets the
+new PITCH/FORMANT parameters to their neutral states. State format is
+unchanged (version 6); automation parameter IDs remain stable.
+
+`parameter_text_roundtrip` checks all 19 controls at varied values plus
+edge cases, invalid units and malformed input. GUI mouse/keyboard interactions
+and actual host lifecycle still require Studio One testing.

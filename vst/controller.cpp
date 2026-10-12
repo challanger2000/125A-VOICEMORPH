@@ -2,6 +2,7 @@
 #include "ids.h"
 #include "MeterUnits.h"
 #include "IRLoadInfo.h"
+#include "VoiceParameterText.h"
 #include "pluginterfaces/base/ustring.h"
 #include "base/source/fstreamer.h"
 #include "pluginterfaces/vst/ivstmessage.h"
@@ -77,8 +78,7 @@ VSTGUI::IController* VMController::createSubController(VSTGUI::UTF8StringPtr nam
 }
 tresult PLUGIN_API VMController::initialize(FUnknown* context){
  auto r=EditControllerEx1::initialize(context);if(r!=kResultOk)return r;
- struct Def {const char16* label;Vst::ParamID id;double value;};
- // Units are deliberately defined as generic normalized values until final display mapping is implemented.
+ // The physical units are implemented symmetrically in VoiceParameterText.h.
  parameters.addParameter(STR16("Input Gain"),STR16("dB"),0,.5,Vst::ParameterInfo::kCanAutomate,kInput);
  parameters.addParameter(STR16("Output Gain"),STR16("dB"),0,.5,Vst::ParameterInfo::kCanAutomate,kOutput);
  parameters.addParameter(STR16("De-Nasal"),nullptr,0,0,Vst::ParameterInfo::kCanAutomate,kDeNasal);
@@ -116,10 +116,17 @@ tresult PLUGIN_API VMController::setComponentState(IBStream* stream){
  IBStreamer io(stream,kLittleEndian);int32 version=0;
  if(!io.readInt32(version)||(version<1||version>6))return kResultFalse;
  const int count=version==1?10:(version==2?14:(version==3?15:(version<=5?17:kParameterCount)));
+ // Fully validate before modifying the visible controller state. Older
+ // projects must reset new Pitch/Formant controls (and missing IR params)
+ // rather than retaining values from the previously opened project.
+ float restored[kParameterCount]={.5f,.5f,0,0,0,0,0,0,0,0,1,.25f,.3f,.25f,1.f,0.f,0.f,2.f/3.f,4.f/7.f};
  for(int id=0;id<count;++id){
-  float value=0;if(!io.readFloat(value)||!std::isfinite(value))return kResultFalse;
-  setParamNormalized(kInput+id,value);
+  float value=0;
+  if(!io.readFloat(value)||!std::isfinite(value))return kResultFalse;
+  restored[id]=std::clamp(value,0.f,1.f);
  }
+ for(int id=0;id<kParameterCount;++id)
+  setParamNormalized(kInput+id,restored[id]);
  return kResultOk;
 }
 }
@@ -127,32 +134,10 @@ tresult PLUGIN_API VMController::setComponentState(IBStream* stream){
 namespace Steinberg {
 tresult PLUGIN_API VMController::getParamStringByValue(Vst::ParamID id,Vst::ParamValue value,Vst::String128 string) {
  if(!string)return kResultFalse;
- if(id==kInput||id==kOutput||id==kMicMix||id==kReverbMix||
-    id==kMicLevel||id==kReverbLevel||id==kMicPredelay||
-    id==kReverbPredelay||id==kMicPosition||id==kLowCut){
-  if(!std::isfinite(value))value=0.;
-  value=std::max(0.,std::min(1.,value));
-  char display[40];
-  if(id==kInput||id==kOutput)
-   std::snprintf(display,sizeof(display),"%.1f dB",(value-.5)*24.);
-  else if(id==kMicMix||id==kReverbMix)
-   std::snprintf(display,sizeof(display),"%.0f %%",value*100.);
-  else if(id==kMicLevel||id==kReverbLevel)
-   std::snprintf(display,sizeof(display),"%.0f %%",value*400.);
-  else if(id==kLowCut)
-   std::snprintf(display,sizeof(display),"%s",value<=0.?"OFF":(std::to_string(static_cast<int>(std::lround(35+145*value)))+" Hz").c_str());
-  else if(id==kMicPredelay||id==kReverbPredelay)
-   std::snprintf(display,sizeof(display),"%.0f ms",value*2000.);
-  else std::snprintf(display,sizeof(display),"%s",value<.5?"PRE":"POST");
-  UString(string,128).fromAscii(display);
-  return kResultTrue;
- }
- if(id==kPitch||id==kFormant){
-  if(!std::isfinite(value))value=0.;
-  value=std::clamp(value,0.,1.);
-  char display[32];
-  const double semitones=id==kPitch?value*18.-12.:value*14.-8.;
-  std::snprintf(display,sizeof(display),"%+.1f st",semitones);
+ if(vm::isVoiceControl(static_cast<int>(id))){
+  char display[48]{};
+  if(!vm::formatVoiceControl(static_cast<int>(id),value,display,sizeof(display)))
+   return kResultFalse;
   UString(string,128).fromAscii(display);
   return kResultTrue;
  }
@@ -179,5 +164,20 @@ tresult PLUGIN_API VMController::getParamStringByValue(Vst::ParamID id,Vst::Para
   return kResultTrue;
  }
  return EditControllerEx1::getParamStringByValue(id,value,string);
+}
+}
+
+namespace Steinberg {
+tresult PLUGIN_API VMController::getParamValueByString(
+ Vst::ParamID id,TChar* string,Vst::ParamValue& normalized) {
+ if(!vm::isVoiceControl(static_cast<int>(id)))
+  return EditControllerEx1::getParamValueByString(id,string,normalized);
+ if(!string)return kResultFalse;
+ char text[128]{};
+ UString(string,-1).toAscii(text,static_cast<int32>(sizeof(text)));
+ double parsed=0.;
+ if(!vm::parseVoiceControl(static_cast<int>(id),text,parsed))return kResultFalse;
+ normalized=parsed;
+ return kResultTrue;
 }
 }
