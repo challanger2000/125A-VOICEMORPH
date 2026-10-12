@@ -45,6 +45,7 @@ private:
  bool stopIRWorker=false;
  bool hasMicJob=false,hasReverbJob=false;
  std::string micJobPath,reverbJobPath;
+ std::string micStatePath,reverbStatePath;
  bool preferMicJob=true;
  void irWorkerLoop();
  void queueIRJob(std::string path,bool mic);

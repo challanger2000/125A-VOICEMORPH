@@ -51,7 +51,7 @@ tresult PLUGIN_API VMController::initialize(FUnknown* context){
 tresult PLUGIN_API VMController::setComponentState(IBStream* stream){
  if(!stream)return kResultFalse;
  IBStreamer io(stream,kLittleEndian);int32 version=0;
- if(!io.readInt32(version)||(version<1||version>4))return kResultFalse;
+ if(!io.readInt32(version)||(version<1||version>5))return kResultFalse;
  const int count=version==1?10:(version==2?14:(version==3?15:kParameterCount));
  for(int id=0;id<count;++id){
   float value=0;if(!io.readFloat(value)||!std::isfinite(value))return kResultFalse;
