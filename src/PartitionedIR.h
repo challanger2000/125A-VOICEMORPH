@@ -101,7 +101,10 @@ public:
     out_[i]=freq_[i].real()+overlap_[i];
     overlap_[i]=freq_[i+B].real();
    }
-   head_=(head_+1)%H_.size();fill_=0;
+   // The input history spans every IR partition, including pruned silent ones.
+   // Advancing modulo H_.size() corrupts delayed sparse taps (and divides by zero
+   // for an entirely silent IR). Use the full history ring instead.
+   head_=(head_+1)%history_.size();fill_=0;
   }
   return std::isfinite(output)?output:0.f;
  }

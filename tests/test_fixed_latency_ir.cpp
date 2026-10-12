@@ -46,7 +46,11 @@ int main(){
  chain.reset();left.prepare(48000);right.prepare(48000);
  vm::Parameters elevated;elevated.outputDb=12.f;
  left.setParameters(elevated);right.setParameters(elevated);
- mic.reset();rev.reset();
+ // The preceding true-stereo crossfeed probe changed mic's IR. Restore
+ // identity impulses here so bypass gain comparisons have a valid reference.
+ assert(mic.prepare(wave,48000));
+ assert(rev.prepare(wave,48000));
+ mic.setMix(1.f);rev.setMix(1.f);
  float before=0,enter=0,full=0,exit=0,after=0;
  for(int n=0;n<1450;++n){
   float l=0,r=0;

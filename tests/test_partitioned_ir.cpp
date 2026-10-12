@@ -32,6 +32,21 @@ int main(){
   const float expected=(n>=128&&n-128<static_cast<int>(sparse.size()))?sparse[n-128]:0.f;
   assert(std::fabs(got-expected)<.00015f);
  }
+ // Repeated input impulses must survive many full-history wraparounds,
+ // including across hundreds of pruned IR partitions.
+ fft.reset();
+ for(int n=0;n<static_cast<int>(sparse.size())*3;++n) {
+  const float signal=(n==0?1.f:0.f)+(n==17?-.3f:0.f)
+                    +(n==211?.6f:0.f)+(n==1270?-.4f:0.f);
+  const float got=fft.processSample(signal);
+  float expected=0.f;
+  for(const int pulse:{0,17,211,1270}){
+   const int k=n-128-pulse;
+   const float amplitude=pulse==0?1.f:(pulse==17?-.3f:(pulse==211?.6f:-.4f));
+   if(k>=0&&k<static_cast<int>(sparse.size()))expected+=amplitude*sparse[k];
+  }
+  assert(std::isfinite(got)&&std::fabs(got-expected)<.0002f);
+ }
  // A silent impulse still produces a valid delayed zero response.
  assert(fft.prepare(std::vector<float>(1024,0.f)));
  assert(fft.ready()&&fft.partitionCount()==8&&fft.activePartitionCount()==0);
