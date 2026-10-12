@@ -18,6 +18,6 @@ jobs:
       - name: Configure
         run: cmake -S . -B build -A x64 -DBUILD_VST3=ON -DVST3_SDK_ROOT="${{ github.workspace }}/external/vst3sdk" -DSMTG_CREATE_PLUGIN_LINK=OFF
       - name: Compile
-        run: cmake --build build --config Release --target VoiceMorph test_voice test_ir test_wav --parallel
+        run: cmake --build build --config Release --target VoiceMorph test_voice test_ir test_wav test_ir_matrix --parallel
       - name: Unit tests
         run: ctest --test-dir build -C Release --output-on-failure
