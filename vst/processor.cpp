@@ -103,9 +103,9 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
     if(q){int32 point=0;q->addPoint(data.numSamples-1,
      std::min(1.,static_cast<double>(std::max(0.f,values[kind]))),point);}
    }
-   dsp[channel].resetMeters();
   }
  }
+ for(auto& channelDSP:dsp)channelDSP.resetMeters();
  return kResultOk;
 }
 tresult PLUGIN_API VMProcessor::getState(IBStream* stream){
