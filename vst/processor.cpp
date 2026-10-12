@@ -77,6 +77,22 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
   if(output.channelBuffers32[ch])std::fill_n(output.channelBuffers32[ch],data.numSamples,0.f);
  }
  output.silenceFlags=0;
+ if(data.outputParameterChanges && data.numSamples>0) {
+  const Vst::ParamID meterIds[4]={kInputPeakL,kInputPeakR,kOutputPeakL,kOutputPeakR};
+  for(int32 channel=0;channel<2;++channel){
+   const float values[2]={
+    dsp[channel].meters().inputPeak.load(std::memory_order_relaxed),
+    dsp[channel].meters().outputPeak.load(std::memory_order_relaxed)
+   };
+   for(int kind=0;kind<2;++kind){
+    int32 index=0;
+    auto* q=data.outputParameterChanges->addParameterData(meterIds[kind*2+channel],index);
+    if(q){int32 point=0;q->addPoint(data.numSamples-1,
+     std::min(1.,static_cast<double>(std::max(0.f,values[kind]))),point);}
+   }
+   dsp[channel].resetMeters();
+  }
+ }
  return kResultOk;
 }
 tresult PLUGIN_API VMProcessor::getState(IBStream* stream){
