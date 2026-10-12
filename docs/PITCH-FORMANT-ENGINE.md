@@ -142,3 +142,11 @@ Restored IR CLEAR commands and requeueing at host setup are serialized under
 an older asynchronous CLEAR from replacing an already prepared new IR stage
 in the short window between restore and load completion. The lock is only
 used on host/control/worker paths, never in `process()`.
+
+### Concurrent state test portability
+
+The concurrency regression uses a namespace-scope compile-time parameter
+count for the array constructed inside a background lambda. This is required
+for the pinned MSVC toolchain, and prevents an invalid non-constant template
+argument. It also tests that multiple unconsumed project restores deliver
+only the latest complete vector to the next audio block.
