@@ -33,7 +33,8 @@ public:
  // IR. The displaced stage is reclaimed by this non-realtime producer.
  // Consumer uses atomic exchange, so it can never observe freed memory.
  bool publishLatest(std::unique_ptr<StereoIRStage>& replacement) noexcept {
-  if(!replacement||!replacement->ready())return false;
+  if(!replacement)return false;
+  // An unprepared stage represents an explicit clear; never delete on audio thread.
   auto* next=replacement.release();
   auto* displaced=pending_.exchange(next,std::memory_order_acq_rel);
   delete displaced;

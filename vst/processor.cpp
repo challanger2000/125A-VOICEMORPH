@@ -26,10 +26,9 @@ VMProcessor::~VMProcessor(){
 void VMProcessor::queueIRJob(std::string path,bool mic){
  {
   std::lock_guard<std::mutex> lock(irJobMutex);
-  // Each IR slot has its own coalescing queue. A mic update cannot
-  // inadvertently discard a pending reverb update (or vice versa).
-  if(mic){micStatePath=path;micJobPath=std::move(path);hasMicJob=true;}
-  else{reverbStatePath=path;reverbJobPath=std::move(path);hasReverbJob=true;}
+  // Each slot coalesces independently; the latest selection is authoritative.
+  if(mic){micJobPath=std::move(path);hasMicJob=true;++micRevision;}
+  else{reverbJobPath=std::move(path);hasReverbJob=true;++reverbRevision;}
  }
  irJobWake.notify_one();
 }
@@ -37,18 +36,46 @@ void VMProcessor::irWorkerLoop(){
  for(;;){
   std::string path;
   bool mic=false;
+  std::uint64_t revision=0;
   {
    std::unique_lock<std::mutex> lock(irJobMutex);
    irJobWake.wait(lock,[this]{return stopIRWorker||hasMicJob||hasReverbJob;});
    if(stopIRWorker)return;
    mic=hasMicJob&&(!hasReverbJob||preferMicJob);
-   if(mic){path=std::move(micJobPath);hasMicJob=false;}
-   else{path=std::move(reverbJobPath);hasReverbJob=false;}
+   if(mic){path=std::move(micJobPath);hasMicJob=false;revision=micRevision;}
+   else{path=std::move(reverbJobPath);hasReverbJob=false;revision=reverbRevision;}
    preferMicJob=!mic;
   }
+  const double sampleRate=currentSampleRate.load(std::memory_order_acquire);
   std::string error;
-  if(mic)loadMicIRFromFileControl(path,error);
-  else loadReverbIRFromFileControl(path,error);
+  std::unique_ptr<vm::StereoIRStage> prepared;
+  if(path.empty())prepared=std::make_unique<vm::StereoIRStage>();
+  else if(sampleRate>=8000.&&sampleRate<=384000.)
+   prepared=vm::IRFileBuilder::load(path,sampleRate,0,error);
+  {
+   std::lock_guard<std::mutex> lock(irJobMutex);
+   if(stopIRWorker)return;
+   if(revision!=(mic?micRevision:reverbRevision))continue; // stale result
+   if(!path.empty()&&sampleRate!=currentSampleRate.load(std::memory_order_acquire)){
+    // Host has changed sample rate during preparation: retry with current rate.
+    if(mic){micJobPath=path;hasMicJob=true;}
+    else{reverbJobPath=path;hasReverbJob=true;}
+    irJobWake.notify_one();
+    continue;
+   }
+   if(prepared){
+    if(mic){
+     micHandoff.reclaimControl();
+     micHandoff.publishLatest(prepared);
+     micStatePath=path;
+    }else{
+     reverbHandoff.reclaimControl();
+     reverbHandoff.publishLatest(prepared);
+     reverbStatePath=path;
+    }
+   }
+   // Failed files retain the last valid stage and path; the GUI can retry.
+  }
  }
 }
 tresult PLUGIN_API VMProcessor::notify(Vst::IMessage* message){
@@ -73,24 +100,6 @@ tresult PLUGIN_API VMProcessor::initialize(FUnknown* context){
  addAudioOutput(STR16("Stereo Out"),Vst::SpeakerArr::kStereo);
  apply();return kResultOk;
 }
-bool VMProcessor::loadMicIRFromFileControl(const std::string& path,std::string& error){
- const double sampleRate=currentSampleRate.load(std::memory_order_acquire);
- if(sampleRate<8000.){error="Audio processing is not configured";return false;}
- micHandoff.reclaimControl();
- auto prepared=vm::IRFileBuilder::load(path,sampleRate,0,error);
- if(!prepared)return false;
- if(!publishMicIR(prepared)){error="Previous microphone IR still pending";return false;}
- error.clear();return true;
-}
-bool VMProcessor::loadReverbIRFromFileControl(const std::string& path,std::string& error){
- const double sampleRate=currentSampleRate.load(std::memory_order_acquire);
- if(sampleRate<8000.){error="Audio processing is not configured";return false;}
- reverbHandoff.reclaimControl();
- auto prepared=vm::IRFileBuilder::load(path,sampleRate,0,error);
- if(!prepared)return false;
- if(!publishReverbIR(prepared)){error="Previous reverb IR still pending";return false;}
- error.clear();return true;
-}
 void VMProcessor::apply() noexcept {
  vm::Parameters p;
  p.inputDb=(params[0]-.5f)*24.f;p.outputDb=(params[1]-.5f)*24.f;
@@ -110,11 +119,16 @@ tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
   currentSampleRate.store(setup.sampleRate,std::memory_order_release);
   for(auto& d:dsp)d.prepare(setup.sampleRate);
   microphoneIR.reset();reverbIR.reset();apply();
+  // Invalidate IR stages prepared for any previous sample rate.
+  auto clearMic=std::make_unique<vm::StereoIRStage>();
+  auto clearRev=std::make_unique<vm::StereoIRStage>();
+  micHandoff.publishLatest(clearMic);
+  reverbHandoff.publishLatest(clearRev);
   // Rebuild saved IRs for the actual project sample rate off the audio thread.
   {
    std::lock_guard<std::mutex> lock(irJobMutex);
-   if(!micStatePath.empty()){micJobPath=micStatePath;hasMicJob=true;}
-   if(!reverbStatePath.empty()){reverbJobPath=reverbStatePath;hasReverbJob=true;}
+   micJobPath=micStatePath;hasMicJob=true;++micRevision;
+   reverbJobPath=reverbStatePath;hasReverbJob=true;++reverbRevision;
   }
   irJobWake.notify_one();
  }
@@ -186,7 +200,7 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
    l=dsp[0].processSample(l);
    r=dsp[1].processSample(r);
    if(!microphonePre&&mic->ready()){
-    microphoneIR.process(l,r,nextL,nextR);l=nextL;r=nextR;
+    mic->process(l,r,nextL,nextR);l=nextL;r=nextR;
    }
    if(rev->ready()){
     rev->process(l,r,nextL,nextR);l=nextL;r=nextR;
@@ -276,9 +290,15 @@ tresult PLUGIN_API VMProcessor::setState(IBStream* stream){
  {
   std::lock_guard<std::mutex> lock(irJobMutex);
   micStatePath=mic;reverbStatePath=rev;
-  hasMicJob=!mic.empty();hasReverbJob=!rev.empty();
+  hasMicJob=hasReverbJob=true;
   micJobPath=mic;reverbJobPath=rev;
+  ++micRevision;++reverbRevision;
  }
+ // A restored empty selection must clear the previously playing IR too.
+ auto clearMic=std::make_unique<vm::StereoIRStage>();
+ auto clearRev=std::make_unique<vm::StereoIRStage>();
+ micHandoff.publishLatest(clearMic);
+ reverbHandoff.publishLatest(clearRev);
  irJobWake.notify_one();
  return kResultOk;
 }

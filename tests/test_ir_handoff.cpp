@@ -37,6 +37,12 @@ int main(){
  assert(bridge.publishLatest(newest)&&!newest);
  assert(bridge.acquireAudio()!=nullptr);
  bridge.reclaimControl();
+ // Clear is explicitly allowed in the latest-only handoff.
+ auto clearStage=std::make_unique<vm::StereoIRStage>();
+ assert(bridge.publishLatest(clearStage)&&!clearStage);
+ auto* cleared=bridge.acquireAudio();
+ assert(cleared && !cleared->ready());
+ bridge.reclaimControl();
  // Concurrent publisher and audio-block consumer: repeated swaps must never
  // result in use-after-free, incomplete stages or control-thread deadlock.
  vm::IRStageHandoff concurrent;

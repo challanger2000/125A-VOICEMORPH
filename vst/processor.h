@@ -6,6 +6,7 @@
 #include "IRFileBuilder.h"
 #include <string>
 #include <memory>
+#include <cstdint>
 #include <atomic>
 #include <thread>
 #include <mutex>
@@ -21,9 +22,6 @@ public:
  bool publishMicIR(std::unique_ptr<vm::StereoIRStage>& stage) noexcept {return micHandoff.publishLatest(stage);}
  bool publishReverbIR(std::unique_ptr<vm::StereoIRStage>& stage) noexcept {return reverbHandoff.publishLatest(stage);}
  void reclaimIRsControl() noexcept {micHandoff.reclaimControl();reverbHandoff.reclaimControl();}
- // Non-audio-thread APIs; no GUI or host message connection yet.
- bool loadMicIRFromFileControl(const std::string& path,std::string& error);
- bool loadReverbIRFromFileControl(const std::string& path,std::string& error);
  tresult PLUGIN_API initialize(FUnknown*) SMTG_OVERRIDE;
  tresult PLUGIN_API notify(Vst::IMessage*) SMTG_OVERRIDE;
  tresult PLUGIN_API setupProcessing(Vst::ProcessSetup&) SMTG_OVERRIDE;
@@ -47,6 +45,7 @@ private:
  std::string micJobPath,reverbJobPath;
  std::string micStatePath,reverbStatePath;
  bool preferMicJob=true;
+ std::uint64_t micRevision=0,reverbRevision=0;
  void irWorkerLoop();
  void queueIRJob(std::string path,bool mic);
  void apply() noexcept;

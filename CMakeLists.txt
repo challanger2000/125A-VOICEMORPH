@@ -50,7 +50,7 @@ if(BUILD_TESTING)
  add_test(NAME ir_realtime_handoff COMMAND test_ir_handoff)
  # CMake Release defines NDEBUG; preserve assert-based test execution.
  if(MSVC)
-  foreach(t test_voice test_ir test_wav test_ir_matrix test_partitioned_ir test_fft_stereo test_ir_resampler test_ir_stage test_meter_units test_ir_pipeline test_ir_file test_ir_builder test_ir_builder_stereo)
+  foreach(t test_voice test_ir test_wav test_ir_matrix test_partitioned_ir test_fft_stereo test_ir_resampler test_ir_stage test_meter_units test_ir_pipeline test_ir_file test_ir_builder test_ir_builder_stereo test_ir_handoff)
    target_compile_options(${t} PRIVATE /UNDEBUG)
   endforeach()
  else()
