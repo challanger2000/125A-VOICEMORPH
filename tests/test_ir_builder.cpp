@@ -21,6 +21,10 @@ int main(){
  auto bad=vm::IRFileBuilder::load(path,4000,0,error);
  assert(!bad&&!error.empty());
  assert(valid->ready());
+ auto tooLong=vm::IRFileBuilder::load(path,48000,96001,error);
+ assert(!tooLong&&!error.empty()&&valid->ready());
+ auto invalidRate=vm::IRFileBuilder::load(path,0,0,error);
+ assert(!invalidRate&&!error.empty()&&valid->ready());
  std::remove(path.c_str());
  auto missing=vm::IRFileBuilder::load(path,48000,0,error);
  assert(!missing&&!error.empty());
