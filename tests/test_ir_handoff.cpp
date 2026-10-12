@@ -29,4 +29,10 @@ int main(){
  bridge.reclaimControl();
  assert(bridge.acquireAudio()!=second);
  bridge.reclaimControl();
+ // Coalescing: a more recent IR replaces a pending one without blocking.
+ auto newer=make();auto newest=make();
+ assert(bridge.publishLatest(newer)&&!newer);
+ assert(bridge.publishLatest(newest)&&!newest);
+ assert(bridge.acquireAudio()!=nullptr);
+ bridge.reclaimControl();
 }

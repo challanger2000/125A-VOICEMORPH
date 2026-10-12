@@ -18,8 +18,8 @@ public:
  VMProcessor();
  ~VMProcessor() override;
  // Non-realtime producer API; a controller/message bridge must invoke these off audio thread.
- bool publishMicIR(std::unique_ptr<vm::StereoIRStage>& stage) noexcept {return micHandoff.publish(stage);}
- bool publishReverbIR(std::unique_ptr<vm::StereoIRStage>& stage) noexcept {return reverbHandoff.publish(stage);}
+ bool publishMicIR(std::unique_ptr<vm::StereoIRStage>& stage) noexcept {return micHandoff.publishLatest(stage);}
+ bool publishReverbIR(std::unique_ptr<vm::StereoIRStage>& stage) noexcept {return reverbHandoff.publishLatest(stage);}
  void reclaimIRsControl() noexcept {micHandoff.reclaimControl();reverbHandoff.reclaimControl();}
  // Non-audio-thread APIs; no GUI or host message connection yet.
  bool loadMicIRFromFileControl(const std::string& path,std::string& error);

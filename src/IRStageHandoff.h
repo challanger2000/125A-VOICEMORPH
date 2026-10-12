@@ -29,6 +29,16 @@ public:
      std::memory_order_release,std::memory_order_relaxed))return false;
   replacement.release();return true;
  }
+ // Producer thread only: newer completed loads supersede any not-yet-consumed
+ // IR. The displaced stage is reclaimed by this non-realtime producer.
+ // Consumer uses atomic exchange, so it can never observe freed memory.
+ bool publishLatest(std::unique_ptr<StereoIRStage>& replacement) noexcept {
+  if(!replacement||!replacement->ready())return false;
+  auto* next=replacement.release();
+  auto* displaced=pending_.exchange(next,std::memory_order_acq_rel);
+  delete displaced;
+  return true;
+ }
  // Audio thread only, once per block, not once per sample.
  StereoIRStage* acquireAudio() noexcept {
   // Do not overwrite a retired pointer before control thread has reclaimed it.
