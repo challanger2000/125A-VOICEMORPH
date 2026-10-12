@@ -1,3 +1,6 @@
-# VST3 peak meter telemetry
+# Meter telemetry note
 
-Four read-only output parameter IDs expose block maximum **linear sample amplitude** for input and output L/R. They are not yet calibrated in dBFS, not yet shown in a GUI, and not yet release tested under host automation and bypass. Values saturate at unity. Host display support varies.
+VST3 block telemetry now uses actual post-chain output buffers, including loaded FFT IR processing and bypass.
+Normal processing input peak is measured after input trim in the DSP; bypass uses dry source.
+The current input path must be verified for in-place processing and should not infer unprocessed source samples after overwriting.
+Read-only host meter parameters use normalized linear peaks, not calibrated dBFS display; GUI needs explicit log conversion.
