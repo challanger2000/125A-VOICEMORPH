@@ -22,6 +22,8 @@ tresult PLUGIN_API VMController::initialize(FUnknown* context){
  parameters.addParameter(STR16("Reverb IR Mix"),STR16("%"),0,.3,Vst::ParameterInfo::kCanAutomate,kReverbMix);
  parameters.addParameter(STR16("Reverb IR Level"),nullptr,0,.25,Vst::ParameterInfo::kCanAutomate,kReverbLevel);
  parameters.addParameter(STR16("Mic IR Position"),nullptr,1,1,Vst::ParameterInfo::kCanAutomate,kMicPosition);
+ parameters.addParameter(STR16("Mic IR Predelay"),STR16("ms"),0,0,Vst::ParameterInfo::kCanAutomate,kMicPredelay);
+ parameters.addParameter(STR16("Reverb IR Predelay"),STR16("ms"),0,0,Vst::ParameterInfo::kCanAutomate,kReverbPredelay);
  parameters.addParameter(STR16("Input Peak L"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kInputPeakL);
  parameters.addParameter(STR16("Input Peak R"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kInputPeakR);
  parameters.addParameter(STR16("Output Peak L"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kOutputPeakL);
@@ -31,8 +33,8 @@ tresult PLUGIN_API VMController::initialize(FUnknown* context){
 tresult PLUGIN_API VMController::setComponentState(IBStream* stream){
  if(!stream)return kResultFalse;
  IBStreamer io(stream,kLittleEndian);int32 version=0;
- if(!io.readInt32(version)||(version<1||version>3))return kResultFalse;
- const int count=version==1?10:(version==2?14:kParameterCount);
+ if(!io.readInt32(version)||(version<1||version>4))return kResultFalse;
+ const int count=version==1?10:(version==2?14:(version==3?15:kParameterCount));
  for(int id=0;id<count;++id){
   float value=0;if(!io.readFloat(value)||!std::isfinite(value))return kResultFalse;
   setParamNormalized(kInput+id,value);

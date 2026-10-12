@@ -15,7 +15,7 @@ public:
  tresult PLUGIN_API getState(IBStream*) SMTG_OVERRIDE;
  tresult PLUGIN_API setState(IBStream*) SMTG_OVERRIDE;
 private:
- float params[kParameterCount]={.5f,.5f,0,0,0,0,0,0,0,0,1,.25f,.3f,.25f,1.f};
+ float params[kParameterCount]={.5f,.5f,0,0,0,0,0,0,0,0,1,.25f,.3f,.25f,1.f,0.f,0.f};
  vm::VoiceDSP dsp[2];
  // Reserved dual IR stages. Unloaded stages are transparent, and never allocate in process().
  vm::StereoIRStage microphoneIR;
