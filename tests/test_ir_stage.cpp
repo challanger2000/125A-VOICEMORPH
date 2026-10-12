@@ -8,6 +8,7 @@ int main(){
  float l=0,r=0;fx.process(.3f,-.3f,l,r);
  assert(l==.3f&&r==-.3f);
  assert(fx.prepare(ir,48000,16));assert(fx.latencySamples()==128);
+ assert(fx.predelaySamples()==16);
  fx.setMix(.5f);fx.setWetLevel(1.f);
  for(int n=0;n<180;++n){
   fx.process(n==0?1.f:0.f,0.f,l,r);
@@ -19,6 +20,15 @@ int main(){
   fx.process(n==0?1.f:0.f,0.f,l,r);
   assert(std::fabs(l-(n==144?1.f:0.f))<.00002f);
  }
+ // Sample-accurate parameter mapping: 0.001 -> 96 samples at 48 kHz / 2 s.
+ fx.reset();fx.setPredelayNormalized(.001f);
+ assert(fx.predelaySamples()==96);
+ for(int n=0;n<240;++n) {
+  fx.process(n==0?1.f:0.f,0.f,l,r);
+  assert(std::fabs(l-(n==224?1.f:0.f))<.00002f);
+ }
+ fx.setPredelayNormalized(0.f);
+ assert(fx.predelaySamples()==0);
  vm::WaveIR bad=ir;bad.sampleRate=0;
  assert(!fx.prepare(bad,48000));assert(fx.ready());
  // True-stereo crossfeed must use the correct opposite-channel impulse.

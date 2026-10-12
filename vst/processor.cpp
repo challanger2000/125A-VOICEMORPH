@@ -22,6 +22,8 @@ void VMProcessor::apply() noexcept {
  microphoneIR.setWetLevel(params[kMicLevel-kInput]*4.f);
  reverbIR.setMix(params[kReverbMix-kInput]);
  reverbIR.setWetLevel(params[kReverbLevel-kInput]*4.f);
+ microphoneIR.setPredelayNormalized(params[kMicPredelay-kInput]);
+ reverbIR.setPredelayNormalized(params[kReverbPredelay-kInput]);
 }
 tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
  auto r=AudioEffect::setupProcessing(setup);

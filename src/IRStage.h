@@ -7,11 +7,11 @@
 #include <vector>
 namespace vm {
 // Offline-prepared stereo IR insert with latency-aligned dry path and wet predelay.
-// prepare() and configurePredelay() are NON-realtime, process() allocates nothing.
+// prepare() allocates the maximum wet delay line off-thread; parameter changes and process() allocate nothing.
 class StereoIRStage {
  FFTStereoIR convolution_;
  std::array<std::vector<float>,2> dry_,wet_;
- std::size_t dryCursor_=0,wetCursor_=0,delay_=0;
+ std::size_t dryCursor_=0,wetCursor_=0,delay_=0,maxDelay_=0;
  float mix_=1.f,level_=1.f;
  bool active_=false;
 public:
@@ -23,13 +23,19 @@ public:
   std::array<std::vector<float>,2> nextDry, nextWet;
   for(int c=0;c<2;++c) {
    nextDry[c].assign(latency,0.f);
-   nextWet[c].assign(std::max<std::size_t>(1,predelaySamples),0.f);
+   nextWet[c].assign(static_cast<std::size_t>(sr*2.0)+1,0.f);
   }
   convolution_=std::move(replacement);
   dry_=std::move(nextDry);wet_=std::move(nextWet);
+  maxDelay_=static_cast<std::size_t>(sr*2.0);
   delay_=predelaySamples;dryCursor_=wetCursor_=0;active_=true;
   return true;
  }
+ void setPredelayNormalized(float normalized) noexcept {
+  if(!std::isfinite(normalized))normalized=0.f;
+  delay_=static_cast<std::size_t>(std::lround(std::clamp(normalized,0.f,1.f)*maxDelay_));
+ }
+ std::size_t predelaySamples() const noexcept {return delay_;}
  void setMix(float mix) noexcept {mix_=std::isfinite(mix)?std::clamp(mix,0.f,1.f):0.f;}
  void setWetLevel(float level) noexcept {level_=std::isfinite(level)?std::clamp(level,0.f,4.f):1.f;}
  bool ready()const noexcept{return active_;}
@@ -47,8 +53,9 @@ public:
   const float dryL=dry_[0][dryCursor_],dryR=dry_[1][dryCursor_];
   dry_[0][dryCursor_]=left;dry_[1][dryCursor_]=right;
   dryCursor_=(dryCursor_+1)%dry_[0].size();
-  const float lateL=wet_[0][wetCursor_],lateR=wet_[1][wetCursor_];
   wet_[0][wetCursor_]=wetL;wet_[1][wetCursor_]=wetR;
+  const auto read=(wetCursor_+wet_[0].size()-delay_)%wet_[0].size();
+  const float lateL=wet_[0][read],lateR=wet_[1][read];
   wetCursor_=(wetCursor_+1)%wet_[0].size();
   // Wet predelay is relative to the already aligned dry signal.
   const float processedL=delay_==0?wetL:lateL;
