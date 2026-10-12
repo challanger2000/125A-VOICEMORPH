@@ -12,6 +12,22 @@ tresult PLUGIN_API VMProcessor::initialize(FUnknown* context){
  addAudioOutput(STR16("Stereo Out"),Vst::SpeakerArr::kStereo);
  apply();return kResultOk;
 }
+bool VMProcessor::loadMicIRFromFileControl(const std::string& path,std::string& error){
+ if(currentSampleRate<8000.){error="Audio processing is not configured";return false;}
+ micHandoff.reclaimControl();
+ auto prepared=vm::IRFileBuilder::load(path,currentSampleRate,0,error);
+ if(!prepared)return false;
+ if(!publishMicIR(prepared)){error="Previous microphone IR still pending";return false;}
+ error.clear();return true;
+}
+bool VMProcessor::loadReverbIRFromFileControl(const std::string& path,std::string& error){
+ if(currentSampleRate<8000.){error="Audio processing is not configured";return false;}
+ reverbHandoff.reclaimControl();
+ auto prepared=vm::IRFileBuilder::load(path,currentSampleRate,0,error);
+ if(!prepared)return false;
+ if(!publishReverbIR(prepared)){error="Previous reverb IR still pending";return false;}
+ error.clear();return true;
+}
 void VMProcessor::apply() noexcept {
  vm::Parameters p;
  p.inputDb=(params[0]-.5f)*24.f;p.outputDb=(params[1]-.5f)*24.f;
@@ -27,7 +43,7 @@ void VMProcessor::apply() noexcept {
 }
 tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
  auto r=AudioEffect::setupProcessing(setup);
- if(r==kResultOk){for(auto& d:dsp)d.prepare(setup.sampleRate);microphoneIR.reset();reverbIR.reset();apply();}
+ if(r==kResultOk){currentSampleRate=setup.sampleRate;for(auto& d:dsp)d.prepare(setup.sampleRate);microphoneIR.reset();reverbIR.reset();apply();}
  return r;
 }
 tresult PLUGIN_API VMProcessor::canProcessSampleSize(int32 n){

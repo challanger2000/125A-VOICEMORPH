@@ -3,6 +3,8 @@
 #include "VoiceDSP.h"
 #include "IRStage.h"
 #include "IRStageHandoff.h"
+#include "IRFileBuilder.h"
+#include <string>
 #include <memory>
 #include "ids.h"
 namespace Steinberg {
@@ -14,6 +16,9 @@ public:
  bool publishMicIR(std::unique_ptr<vm::StereoIRStage>& stage) noexcept {return micHandoff.publish(stage);}
  bool publishReverbIR(std::unique_ptr<vm::StereoIRStage>& stage) noexcept {return reverbHandoff.publish(stage);}
  void reclaimIRsControl() noexcept {micHandoff.reclaimControl();reverbHandoff.reclaimControl();}
+ // Non-audio-thread APIs; no GUI or host message connection yet.
+ bool loadMicIRFromFileControl(const std::string& path,std::string& error);
+ bool loadReverbIRFromFileControl(const std::string& path,std::string& error);
  tresult PLUGIN_API initialize(FUnknown*) SMTG_OVERRIDE;
  tresult PLUGIN_API setupProcessing(Vst::ProcessSetup&) SMTG_OVERRIDE;
  tresult PLUGIN_API canProcessSampleSize(int32) SMTG_OVERRIDE;
@@ -27,6 +32,7 @@ private:
  vm::StereoIRStage microphoneIR;
  vm::StereoIRStage reverbIR;
  vm::IRStageHandoff micHandoff,reverbHandoff;
+ double currentSampleRate=0.;
  void apply() noexcept;
 };
 }
