@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <complex>
 #include <cstddef>
@@ -12,7 +13,10 @@ namespace vm {
 class PartitionedIR {
  static constexpr std::size_t B=128,N=256;
  using C=std::complex<float>;
- static void transform(std::vector<C>& a,bool inverse) noexcept {
+ // Roots prepared off the audio thread. A real-valued transform has
+ // conjugate-symmetric spectra: multiplication only needs N/2+1 bins.
+ std::array<C,N/2> roots_{};
+ void transform(std::vector<C>& a,bool inverse) const noexcept {
   for(std::size_t i=1,j=0;i<N;++i){
    std::size_t bit=N>>1;
    for(;j&bit;bit>>=1)j^=bit;
@@ -20,13 +24,12 @@ class PartitionedIR {
    if(i<j)std::swap(a[i],a[j]);
   }
   for(std::size_t len=2;len<=N;len<<=1){
-   float ang=(inverse?2.f:-2.f)*3.14159265358979323846f/static_cast<float>(len);
-   C wlen(std::cos(ang),std::sin(ang));
+   const std::size_t stride=N/len;
    for(std::size_t i=0;i<N;i+=len){
-    C w(1,0);
     for(std::size_t j=0;j<len/2;++j){
-     C u=a[i+j],v=a[i+j+len/2]*w;
-     a[i+j]=u+v;a[i+j+len/2]=u-v;w*=wlen;
+     const C w=inverse?std::conj(roots_[j*stride]):roots_[j*stride];
+     const C u=a[i+j],v=a[i+j+len/2]*w;
+     a[i+j]=u+v;a[i+j+len/2]=u-v;
     }
    }
   }
@@ -42,6 +45,14 @@ public:
  bool prepare(const std::vector<float>& impulse,std::size_t maximum=48000u*30u){
   if(impulse.empty()||impulse.size()>maximum)return false;
   for(float x:impulse)if(!std::isfinite(x))return false;
+  // Generate one FFT root table per convolution object in prepare().
+  // No trigonometry, vector growth or thread-safe static initialization in
+  // the audio callback.
+  for(std::size_t k=0;k<N/2;++k){
+   const float angle=-2.f*3.14159265358979323846f*
+      static_cast<float>(k)/static_cast<float>(N);
+   roots_[k]=C(std::cos(angle),std::sin(angle));
+  }
   auto partitions=(impulse.size()+B-1)/B;
   // Keep the delay history for the entire IR but only transform and
   // multiply partitions containing nonzero coefficients. This dramatically
@@ -93,9 +104,16 @@ public:
    std::fill(freq_.begin(),freq_.end(),C{});
    const auto historySize=history_.size();
    for(std::size_t i=0;i<H_.size();++i){
-    auto& h=history_[(head_+historySize-partitionOffsets_[i])%historySize];
-    for(std::size_t k=0;k<N;++k)freq_[k]+=H_[i][k]*h[k];
+    const C* h=history_[(head_+historySize-partitionOffsets_[i])%historySize].data();
+    const C* ir=H_[i].data();
+    // Half-spectrum frequency-domain convolution for real-valued input.
+    // The other half is determined by Hermitian symmetry. This cuts the
+    // dominant dense-IR multiply/accumulate work roughly in half.
+    for(std::size_t k=0;k<=B;++k)freq_[k]+=ir[k]*h[k];
    }
+   freq_[0]=C(freq_[0].real(),0.f);
+   freq_[B]=C(freq_[B].real(),0.f);
+   for(std::size_t k=1;k<B;++k)freq_[N-k]=std::conj(freq_[k]);
    transform(freq_,true);
    for(std::size_t i=0;i<B;++i){
     out_[i]=freq_[i].real()+overlap_[i];

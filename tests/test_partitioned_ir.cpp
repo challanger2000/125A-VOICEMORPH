@@ -47,6 +47,27 @@ int main(){
   }
   assert(std::isfinite(got)&&std::fabs(got-expected)<.0002f);
  }
+ // Dense non-sparse IR: compare the Hermitian frequency-path result to a
+ // time-domain direct convolution for multiple separated input impulses.
+ const int denseLength=8192;
+ std::vector<float> dense(denseLength);
+ for(int k=0;k<denseLength;++k)
+  dense[k]=.02f*std::exp(-k/2500.f)*std::sin(k*.19f+.6f);
+ assert(fft.prepare(dense));
+ assert(fft.activePartitionCount()==64);
+ const int points[]={0,39,197,1405};
+ const float volumes[]={1.f,-.5f,.25f,.7f};
+ for(int n=0;n<denseLength+1600;++n){
+  float x=0.f;
+  float expected=0.f;
+  for(int i=0;i<4;++i){
+   if(n==points[i])x+=volumes[i];
+   const int k=n-128-points[i];
+   if(k>=0&&k<denseLength)expected+=volumes[i]*dense[k];
+  }
+  const float got=fft.processSample(x);
+  assert(std::isfinite(got)&&std::fabs(got-expected)<.0003f);
+ }
  // A silent impulse still produces a valid delayed zero response.
  assert(fft.prepare(std::vector<float>(1024,0.f)));
  assert(fft.ready()&&fft.partitionCount()==8&&fft.activePartitionCount()==0);

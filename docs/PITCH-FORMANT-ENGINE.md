@@ -97,3 +97,16 @@ CPU gate on shared CI**. C++ allocations in the callback remain a hard FAIL.
 Before claiming realtime safety, run paced host/audio torture and address
 small-block deadline misses without introducing audible timing errors or
 unreported latency.
+
+## FFT dense-convolution optimization
+
+The original uniformly partitioned reference engine performed complex MACs
+across all 256 FFT bins for each IR partition. Because all input IRs and
+incoming audio are real-valued, the spectra are conjugate-symmetric. The
+engine now accumulates **129 unique bins** and reconstructs the remaining
+127 bins before inverse FFT; precomputed complex roots replace repeated
+trigonometric twiddle generation in the audio callback. This is an exact
+algebraic reduction, not IR trimming or a quality/lossy mode. Dense IR
+regression compares multi-impulse output against direct time-domain
+convolution, including delayed taps, to catch spectral symmetry errors.
+The unchanged block-size profile is used to quantify the actual CPU savings.
