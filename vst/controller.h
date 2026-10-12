@@ -14,6 +14,6 @@ public:
  tresult clearIRFile(bool microphone);
  tresult PLUGIN_API setComponentState(IBStream*) SMTG_OVERRIDE;
  tresult PLUGIN_API getParamStringByValue(Vst::ParamID,Vst::ParamValue,Vst::String128) SMTG_OVERRIDE;
- tresult PLUGIN_API getParamValueByString(Vst::ParamID,TChar*,Vst::ParamValue&) SMTG_OVERRIDE;
+ tresult PLUGIN_API getParamValueByString(Vst::ParamID,Vst::TChar*,Vst::ParamValue&) SMTG_OVERRIDE;
 };
 }

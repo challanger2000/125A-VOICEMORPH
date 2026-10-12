@@ -169,12 +169,21 @@ tresult PLUGIN_API VMController::getParamStringByValue(Vst::ParamID id,Vst::Para
 
 namespace Steinberg {
 tresult PLUGIN_API VMController::getParamValueByString(
- Vst::ParamID id,TChar* string,Vst::ParamValue& normalized) {
+ Vst::ParamID id,Vst::TChar* string,Vst::ParamValue& normalized) {
  if(!vm::isVoiceControl(static_cast<int>(id)))
   return EditControllerEx1::getParamValueByString(id,string,normalized);
  if(!string)return kResultFalse;
+ // Incoming VST3 strings are UTF-16 and null-terminated. The physical
+ // value grammar is strictly ASCII; validate conversion and length here.
+ // UString(string,-1) is not valid: its second argument is buffer capacity.
  char text[128]{};
- UString(string,-1).toAscii(text,static_cast<int32>(sizeof(text)));
+ std::size_t length=0;
+ for(;length<127&&string[length]!=0;++length) {
+  const auto ch=static_cast<unsigned int>(string[length]);
+  if(ch>0x7f)return kResultFalse;
+  text[length]=static_cast<char>(ch);
+ }
+ if(length==127)return kResultFalse;
  double parsed=0.;
  if(!vm::parseVoiceControl(static_cast<int>(id),text,parsed))return kResultFalse;
  normalized=parsed;

@@ -171,3 +171,12 @@ unchanged (version 6); automation parameter IDs remain stable.
 `parameter_text_roundtrip` checks all 19 controls at varied values plus
 edge cases, invalid units and malformed input. GUI mouse/keyboard interactions
 and actual host lifecycle still require Studio One testing.
+
+### SDK UTF-16 parameter text interoperability
+
+The VST3 text-to-value override uses the SDK-qualified `Vst::TChar*`
+argument. Incoming values are limited to a 127-character ASCII subset
+and converted with explicit bounds checks before physical-unit parsing.
+Unsupported UTF-16 symbols or unterminated/oversized input are rejected.
+The previous `UString(string,-1)` expression was not a valid buffer-size
+contract for the Steinberg SDK and is not used.
