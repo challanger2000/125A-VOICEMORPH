@@ -234,12 +234,12 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
 }
 namespace {
 bool writeIRPath(IBStream* stream,const std::string& path){
- const int32 length=static_cast<int32>(path.size());
+ int32 length=static_cast<int32>(path.size());
  if(length>4096)return false;
  int32 actual=0;
  if(stream->write(&length,sizeof(length),&actual)!=kResultOk||actual!=sizeof(length))return false;
  if(!length)return true;
- return stream->write(path.data(),length,&actual)==kResultOk&&actual==length;
+ return stream->write(const_cast<char*>(path.data()),length,&actual)==kResultOk&&actual==length;
 }
 bool readIRPath(IBStream* stream,std::string& path){
  int32 length=0,actual=0;
