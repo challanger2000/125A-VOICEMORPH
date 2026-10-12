@@ -4,6 +4,7 @@
 #include <array>
 #include <vector>
 #include <cmath>
+#include <utility>
 namespace vm {
 // Offline preparation and allocation only. Processing is fully allocation-free.
 // Four-channel IR channel order is LL, RR, LR, RL (as specified by our decoder contract).
@@ -16,6 +17,7 @@ public:
   if(ir.channels!=1&&ir.channels!=2&&ir.channels!=4)return false;
   if(ir.sampleRate==0||std::fabs(static_cast<double>(ir.sampleRate)-hostRate)>.001)return false; // resampling is not silently approximated
   if(ir.frames()==0||ir.interleaved.size()!=ir.frames()*ir.channels)return false;
+  if(ir.frames()>static_cast<std::size_t>(hostRate*30.0))return false;
   std::array<std::vector<float>,4> taps;
   for(auto& t:taps)t.assign(ir.frames(),0.f);
   for(std::size_t n=0;n<ir.frames();++n) {
@@ -27,11 +29,13 @@ public:
    }
   }
   // Validate completely before modifying any DSP state.
-  if(ir.frames()>48000u*30u)return false;
+
   for(const auto& channel:taps)
    for(float sample:channel)if(!std::isfinite(sample))return false;
   // Only validated IRs reach the prepared convolution engines.
-  for(int i=0;i<4;++i) if(!path_[i].prepare(taps[i]))return false;
+  std::array<PartitionedIR,4> replacement;
+  for(int i=0;i<4;++i)if(!replacement[i].prepare(taps[i],static_cast<std::size_t>(hostRate*30.0)))return false;
+  path_=std::move(replacement);
   loaded_=true;return true;
  }
  bool ready()const noexcept{return loaded_;}

@@ -43,6 +43,9 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
  auto& input=data.inputs[0];auto& output=data.outputs[0];
  if(data.symbolicSampleSize!=Vst::kSample32)return kResultFalse;
  const int32 channels=std::min({input.numChannels,output.numChannels,2});
+ if(channels==2 && (!input.channelBuffers32[0]||!input.channelBuffers32[1]||
+                    !output.channelBuffers32[0]||!output.channelBuffers32[1]))
+  return kResultFalse;
  // Snapshot dry signal before modifying any buffers (VST3 in-place processing).
  float dryPeak[2]={0.f,0.f};
  for(int32 channel=0;channel<channels;++channel){
