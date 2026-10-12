@@ -21,5 +21,21 @@ int main(){
  }
  vm::WaveIR bad=ir;bad.sampleRate=0;
  assert(!fx.prepare(bad,48000));assert(fx.ready());
+ // True-stereo crossfeed must use the correct opposite-channel impulse.
+ vm::WaveIR quad;quad.channels=4;quad.sampleRate=48000;
+ quad.interleaved={1.f,1.f,.25f,.125f};
+ vm::StereoIRStage cross;
+ assert(cross.prepare(quad,48000,0));
+ cross.setMix(1.f);
+ for(int n=0;n<132;++n) {
+  cross.process(n==0?1.f:0.f,0.f,l,r);
+  assert(std::fabs(l-(n==128?1.f:0.f))<.00002f);
+  assert(std::fabs(r-(n==128?.25f:0.f))<.00002f);
+ }
+ cross.reset();
+ for(int n=0;n<140;++n) {
+  cross.process(0.f,0.f,l,r);
+  assert(std::fabs(l)<.00002f&&std::fabs(r)<.00002f);
+ }
  std::cout<<"IR stage predelay and dry alignment PASS\n";
 }
