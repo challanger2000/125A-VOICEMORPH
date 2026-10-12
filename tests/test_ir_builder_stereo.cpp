@@ -8,7 +8,7 @@
 int main(){
  const std::string path="ir_stereo_builder.wav";
  // Two-frame stereo PCM16 with independent L/R impulses.
- const unsigned char bytes[]={'R','I','F','F',42,0,0,0,'W','A','V','E',
+ const unsigned char bytes[]={'R','I','F','F',44,0,0,0,'W','A','V','E',
  'f','m','t',' ',16,0,0,0,1,0,2,0,0x80,0xbb,0,0,
  0,0xee,2,0,4,0,16,0,'d','a','t','a',8,0,0,0,
  0,0x40,0,0x20,0,0,0,0};

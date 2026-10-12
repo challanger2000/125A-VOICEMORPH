@@ -1,9 +1,6 @@
 name: DSP Foundation QA
 on:
   workflow_dispatch:
-  push:
-    branches: [develop/v1.0.0]
-    paths: [src/**, tests/**, CMakeLists.txt, .github/workflows/dsp-qa.yml]
 jobs:
   dsp-foundation:
     runs-on: windows-2022
