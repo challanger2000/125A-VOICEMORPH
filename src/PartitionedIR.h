@@ -40,6 +40,9 @@ class PartitionedIR {
  std::vector<C> scratch_,freq_;
  std::vector<float> overlap_,incoming_,out_;
  std::size_t head_=0,fill_=0,read_=0;
+ // 0/1: first active IR partition corresponds to current input FFT.
+ // Every other partition can be accumulated before the block boundary.
+ std::size_t currentPartCount_=0;
 public:
  static constexpr std::size_t latencySamples() noexcept{return B;}
  bool prepare(const std::vector<float>& impulse,std::size_t maximum=48000u*30u){
@@ -76,6 +79,7 @@ public:
   }
   std::vector<std::vector<C>> nextHistory(partitions,std::vector<C>(N));
   H_.swap(nextH);history_.swap(nextHistory);partitionOffsets_.swap(nextOffsets);
+  currentPartCount_=(!partitionOffsets_.empty()&&partitionOffsets_.front()==0)?1:0;
   scratch_.assign(N,C{});freq_.assign(N,C{});
   overlap_.assign(B,0.f);incoming_.assign(B,0.f);out_.assign(B,0.f);
   head_=fill_=read_=0;
@@ -86,6 +90,7 @@ public:
  std::size_t partitionCount()const noexcept{return history_.size();}
  void reset() noexcept {
   for(auto& h:history_)std::fill(h.begin(),h.end(),C{});
+  std::fill(freq_.begin(),freq_.end(),C{});
   std::fill(overlap_.begin(),overlap_.end(),0.f);
   std::fill(incoming_.begin(),incoming_.end(),0.f);
   std::fill(out_.begin(),out_.end(),0.f);
@@ -95,20 +100,30 @@ public:
   if(!ready())return sample;
   float output=out_[read_];
   read_=(read_+1)%B;
+  // At this point head_ is reserved for the not-yet-completed current
+  // block. All X[n-p] for p>=1 already exist in history_ and are immutable
+  // throughout the period. Schedule their products uniformly across 128
+  // samples instead of executing every FFT MAC at the block boundary.
+  const std::size_t delayedCount=H_.size()-currentPartCount_;
+  const std::size_t start=(fill_*delayedCount)/B;
+  const std::size_t stop=((fill_+1)*delayedCount)/B;
+  const std::size_t historySize=history_.size();
+  for(std::size_t i=start;i<stop;++i){
+   const std::size_t index=i+currentPartCount_;
+   const C* h=history_[(head_+historySize-partitionOffsets_[index])%historySize].data();
+   const C* ir=H_[index].data();
+   for(std::size_t k=0;k<=B;++k)freq_[k]+=ir[k]*h[k];
+  }
   incoming_[fill_++]=std::isfinite(sample)?sample:0.f;
   if(fill_==B){
    std::fill(scratch_.begin(),scratch_.end(),C{});
-   for(std::size_t i=0;i<B;++i)scratch_[i]=C(incoming_[i],0);
+   for(std::size_t i=0;i<B;++i)scratch_[i]=C(incoming_[i],0.f);
    transform(scratch_,false);
    history_[head_]=scratch_;
-   std::fill(freq_.begin(),freq_.end(),C{});
-   const auto historySize=history_.size();
-   for(std::size_t i=0;i<H_.size();++i){
-    const C* h=history_[(head_+historySize-partitionOffsets_[i])%historySize].data();
-    const C* ir=H_[i].data();
-    // Half-spectrum frequency-domain convolution for real-valued input.
-    // The other half is determined by Hermitian symmetry. This cuts the
-    // dominant dense-IR multiply/accumulate work roughly in half.
+   // Only H[0] depends on the just-finished input block.
+   if(currentPartCount_){
+    const C* ir=H_[0].data();
+    const C* h=scratch_.data();
     for(std::size_t k=0;k<=B;++k)freq_[k]+=ir[k]*h[k];
    }
    freq_[0]=C(freq_[0].real(),0.f);
@@ -119,10 +134,10 @@ public:
     out_[i]=freq_[i].real()+overlap_[i];
     overlap_[i]=freq_[i+B].real();
    }
-   // The input history spans every IR partition, including pruned silent ones.
-   // Advancing modulo H_.size() corrupts delayed sparse taps (and divides by zero
-   // for an entirely silent IR). Use the full history ring instead.
-   head_=(head_+1)%history_.size();fill_=0;
+   // The inverse FFT has overwritten the accumulator. Clear it for the
+   // next period; no allocations or synchronization on the audio thread.
+   std::fill(freq_.begin(),freq_.end(),C{});
+   head_=(head_+1)%historySize;fill_=0;
   }
   return std::isfinite(output)?output:0.f;
  }

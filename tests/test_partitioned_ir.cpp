@@ -68,6 +68,33 @@ int main(){
   const float got=fft.processSample(x);
   assert(std::isfinite(got)&&std::fabs(got-expected)<.0003f);
  }
+ // Arbitrary continuous signal and non-partition-aligned dense coefficients:
+ // compare direct reference convolution for every output sample, including
+ // the first and last IR partitions, across repeated FFT history wraparound.
+ std::vector<float> full(1473),in(6461),reference(6461,0.f);
+ for(int k=0;k<static_cast<int>(full.size());++k)
+  full[k]=.013f*std::exp(-k/480.f)*std::cos(.113f*k+1.f);
+ for(int n=0;n<static_cast<int>(in.size());++n)
+  in[n]=.17f*std::sin(.037f*n)+.11f*std::cos(.109f*n);
+ for(int n=0;n<static_cast<int>(in.size());++n)
+  for(int k=0;k<static_cast<int>(full.size())&&k<=n;++k)
+   reference[n]+=full[k]*in[n-k];
+ assert(fft.prepare(full));
+ for(int n=0;n<static_cast<int>(in.size());++n){
+  const float got=fft.processSample(in[n]);
+  const float expected=n>=B?reference[n-B]:0.f;
+  assert(std::isfinite(got)&&std::fabs(got-expected)<.0004f);
+ }
+ // Reset in the middle of a partition period, *after* nonzero delayed
+ // MACs were already pre-accumulated. They must not contaminate new audio.
+ fft.reset();
+ for(int n=0;n<2*B+73;++n)(void)fft.processSample(in[n]);
+ fft.reset();
+ for(int n=0;n<static_cast<int>(in.size());++n){
+  const float got=fft.processSample(in[n]);
+  const float expected=n>=B?reference[n-B]:0.f;
+  assert(std::isfinite(got)&&std::fabs(got-expected)<.0004f);
+ }
  // A silent impulse still produces a valid delayed zero response.
  assert(fft.prepare(std::vector<float>(1024,0.f)));
  assert(fft.ready()&&fft.partitionCount()==8&&fft.activePartitionCount()==0);

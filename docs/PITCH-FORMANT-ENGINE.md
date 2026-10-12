@@ -110,3 +110,18 @@ algebraic reduction, not IR trimming or a quality/lossy mode. Dense IR
 regression compares multi-impulse output against direct time-domain
 convolution, including delayed taps, to catch spectral symmetry errors.
 The unchanged block-size profile is used to quantify the actual CPU savings.
+
+## Distributed delayed-partition MACs (no additional latency)
+
+For each 128-sample input period the newly captured FFT input spectrum is not
+available until the end of that period. However, all input spectra feeding
+**delayed** IR partitions (offset >= 1) are known from previous periods.
+Their Hermitian frequency products now accumulate incrementally over the next
+128 incoming samples; only the current/zero-delay partition and forward/inverse
+256-point FFT transforms execute at the block boundary. This reduces callback
+burst load while preserving 128 samples of per-IR latency, 256 samples total IR
+latency, all coefficients, stereo routing and the output overlap schedule.
+No memory allocation, locking or added processing thread is required.
+A new full-signal direct-convolution test compares all output samples over
+many FIFO wraparounds, and repeats after reset. Small-buffer deadline profiles
+remain diagnostic until verified on Windows hardware and in Studio One.
