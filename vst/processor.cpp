@@ -41,11 +41,13 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
    int32 offset=0;Vst::ParamValue value=0;
    if(q->getPoint(q->getPointCount()-1,offset,value)!=kResultTrue)continue;
    auto id=q->getParameterId();
-   if(id>=kInput&&id<=kReverbPredelay)params[id-kInput]=static_cast<float>(std::max(0.,std::min(1.,value)));
+   if(id>=kInput&&id<=kReverbPredelay && std::isfinite(value))
+    params[id-kInput]=static_cast<float>(std::clamp(value,0.,1.));
   }
   apply();
  }
- if(data.numSamples<=0||data.numInputs<1||data.numOutputs<1)return kResultOk;
+ if(data.numSamples<=0)return kResultOk;
+ if(data.numInputs<1||data.numOutputs<1||!data.inputs||!data.outputs)return kResultFalse;
  auto& input=data.inputs[0];auto& output=data.outputs[0];
  if(data.symbolicSampleSize!=Vst::kSample32)return kResultFalse;
  if(!input.channelBuffers32||!output.channelBuffers32)return kResultFalse;
@@ -73,6 +75,8 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
   for(int32 n=0;n<data.numSamples;++n){
    float l=input.channelBuffers32[0][n];
    float r=input.channelBuffers32[1][n];
+   if(!std::isfinite(l))l=0.f;
+   if(!std::isfinite(r))r=0.f;
    float nextL=0.f,nextR=0.f;
    const bool microphonePre=params[kMicPosition-kInput]<.5f;
    if(microphonePre&&microphoneIR.ready()){
@@ -114,8 +118,8 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
  if(data.outputParameterChanges && data.numSamples>0) {
   const Vst::ParamID meterIds[4]={kInputPeakL,kInputPeakR,kOutputPeakL,kOutputPeakR};
   for(int32 channel=0;channel<2;++channel){
-   const float values[2]={params[kBypass-kInput]>=.5f?dryPeak[channel]:
-    dsp[channel].meters().inputPeak.load(std::memory_order_relaxed),meterOutput[channel]};
+   // Report physical bus input peaks consistently, irrespective of input trim, bypass or IR routing.
+   const float values[2]={dryPeak[channel],meterOutput[channel]};
    for(int kind=0;kind<2;++kind){
     int32 index=0;
     auto* q=data.outputParameterChanges->addParameterData(meterIds[kind*2+channel],index);
