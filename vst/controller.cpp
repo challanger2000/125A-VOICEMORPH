@@ -1,7 +1,10 @@
 #include "controller.h"
 #include "ids.h"
+#include "MeterUnits.h"
+#include "pluginterfaces/base/ustring.h"
 #include "base/source/fstreamer.h"
 #include <cmath>
+#include <cstdio>
 namespace Steinberg {
 tresult PLUGIN_API VMController::initialize(FUnknown* context){
  auto r=EditControllerEx1::initialize(context);if(r!=kResultOk)return r;
@@ -40,5 +43,20 @@ tresult PLUGIN_API VMController::setComponentState(IBStream* stream){
   setParamNormalized(kInput+id,value);
  }
  return kResultOk;
+}
+}
+
+namespace Steinberg {
+tresult PLUGIN_API VMController::getParamStringByValue(Vst::ParamID id,Vst::ParamValue value,Vst::String128 string) {
+ if(id>=kInputPeakL&&id<=kOutputPeakR) {
+  if(!std::isfinite(value))value=0.;
+  char display[32];
+  const double db=vm::meterToDbfs(value);
+  if(db<=-120.)std::snprintf(display,sizeof(display),"-inf dBFS");
+  else std::snprintf(display,sizeof(display),"%.1f dBFS",db);
+  UString(string,128).fromAscii(display);
+  return kResultTrue;
+ }
+ return EditControllerEx1::getParamStringByValue(id,value,string);
 }
 }
