@@ -14,7 +14,9 @@ class PitchFormantDSP {
  float pitchSemitones_=0,formantSemitones_=0;
 public:
  bool prepare(double sampleRate){
-  if(!std::isfinite(sampleRate)||sampleRate<8000.||sampleRate>384000.)return false;
+  if(!std::isfinite(sampleRate)||sampleRate<8000.||sampleRate>384000.){
+   ready_=false;return false;
+  }
   rate_=sampleRate;
   // Speech analysis window ~50 ms, hop ~12.5 ms. Exact latency is queried
   // from the library; arbitrary buffer sizes would be wrong for host PDC.
@@ -28,6 +30,9 @@ public:
   ready_=true;
   return true;
  }
+ // Host setup fallback for unsupported rates: no spectral processing and
+ // no stale state or falsely advertised spectral latency.
+ void disable() noexcept {ready_=false;}
  void reset(){if(ready_)engine_.reset();}
  void setPitchSemitones(float semitones) {
   if(!std::isfinite(semitones))return;

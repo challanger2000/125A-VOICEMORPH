@@ -139,7 +139,12 @@ tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
  if(r==kResultOk){
   currentSampleRate.store(setup.sampleRate,std::memory_order_release);
   for(auto& d:dsp)d.prepare(setup.sampleRate);
-  if(!pitchEngine.prepare(setup.sampleRate))return kResultFalse;
+  // Steinberg Validator probes arbitrary positive sample rates (including
+  // 1234.568 Hz and 1234567.8 Hz). Never fail the host lifecycle merely
+  // because the spectral algorithm cannot run meaningfully at that rate.
+  // Disable pitch/formants at unsupported rates, preserve the IR-only path,
+  // and return to normal spectral processing on the next valid setup.
+  if(!pitchEngine.prepare(setup.sampleRate))pitchEngine.disable();
   fixedIRChain.preparePitchLatency(static_cast<std::size_t>(pitchEngine.latencySamples()));
   totalLatencySamples.store(static_cast<uint32>(fixedIRChain.latencySamples()),std::memory_order_release);
   microphoneIR.reset();reverbIR.reset();apply();

@@ -66,6 +66,19 @@ int main(){
   assert(std::isfinite(l)&&std::isfinite(r));
   assert(std::fabs(l-(n==latency+256?1.f:0.f))<.0001f);
  }
+ // If a host presents a rate beyond the spectral engine's design,
+ // retain a correct 256-sample IR-only fallback rather than stale PDC.
+ spectral.disable();
+ chain.preparePitchLatency(static_cast<std::size_t>(spectral.latencySamples()));
+ assert(chain.latencySamples()==256);
+ lDSP.prepare(sr);rDSP.prepare(sr);
+ for(int n=0;n<512;++n){
+  float l=0.f,r=0.f;
+  chain.process(n==0?1.f:0.f,0.f,l,r,lDSP,rDSP,
+                nullptr,nullptr,true,false,&spectral);
+  assert(std::fabs(l-(n==256?1.f:0.f))<.0001f);
+  assert(std::fabs(r)<.0001f);
+ }
  std::cout<<"Integrated pitch and formant host chain PASS, pitch "<<f
           <<" Hz, latency "<<chain.latencySamples()<<" samples\n";
 }

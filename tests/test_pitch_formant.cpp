@@ -42,6 +42,20 @@ int main(){
  assert(!fx.prepare(4000));
  assert(fx.prepare(48000));
  assert(fx.ready()&&fx.latencySamples()>0&&fx.latencySamples()<12000);
+ // Steinberg's unusual sample-rate probes must not retain an earlier
+ // configured spectral processor (or report stale pitch latency).
+ for(double rate:{1234.568,1234567.8,0.0}){
+  assert(!fx.prepare(rate));
+  assert(!fx.ready()&&fx.latencySamples()==0);
+  float left=0.f,right=0.f;
+  fx.processSample(.25f,-.5f,left,right);
+  assert(left==.25f&&right==-.5f);
+  assert(fx.prepare(48000));
+  assert(fx.ready()&&fx.latencySamples()>0);
+ }
+ fx.disable();
+ assert(!fx.ready()&&fx.latencySamples()==0);
+ assert(fx.prepare(48000));
  fx.setPitchSemitones(-12);
  fx.setFormantSemitones(-5);
  assert(fx.pitchSemitones()==-12&&fx.formantSemitones()==-5);

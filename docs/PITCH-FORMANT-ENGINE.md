@@ -44,3 +44,13 @@ for v5+.
   loudness, channel correlation, silence/tails.
 - VSTGUI attach/open/close/reopen/zoom and full knob/edit text automation,
   save-reopen behaviour, 125A Release QA.
+
+## Host sample-rate fallback (validator regression)
+
+The Steinberg validator also calls `setupProcessing()` with 1234.568 Hz and
+1,234,567.8 Hz. These rates are outside the supported spectral analysis domain
+of 8,000–384,000 Hz. The plugin must still accept lifecycle setup: the spectral
+processor is disabled, host PDC reports the remaining 256-sample dual-IR delay,
+and the neutral/IR-only audio path stays valid. A later supported setup fully
+reinitialises the pitch processor and restores the measured spectral latency.
+This fallback does not claim pitch/formant processing works at those unusual rates.
