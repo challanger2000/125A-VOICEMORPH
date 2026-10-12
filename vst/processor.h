@@ -2,12 +2,18 @@
 #include "public.sdk/source/vst/vstaudioeffect.h"
 #include "VoiceDSP.h"
 #include "IRStage.h"
+#include "IRStageHandoff.h"
+#include <memory>
 #include "ids.h"
 namespace Steinberg {
 class VMProcessor final:public Vst::AudioEffect {
 public:
  static FUnknown* createInstance(void*) {return static_cast<Vst::IAudioProcessor*>(new VMProcessor);}
  VMProcessor();
+ // Non-realtime producer API; a controller/message bridge must invoke these off audio thread.
+ bool publishMicIR(std::unique_ptr<vm::StereoIRStage>& stage) noexcept {return micHandoff.publish(stage);}
+ bool publishReverbIR(std::unique_ptr<vm::StereoIRStage>& stage) noexcept {return reverbHandoff.publish(stage);}
+ void reclaimIRsControl() noexcept {micHandoff.reclaimControl();reverbHandoff.reclaimControl();}
  tresult PLUGIN_API initialize(FUnknown*) SMTG_OVERRIDE;
  tresult PLUGIN_API setupProcessing(Vst::ProcessSetup&) SMTG_OVERRIDE;
  tresult PLUGIN_API canProcessSampleSize(int32) SMTG_OVERRIDE;
@@ -20,6 +26,7 @@ private:
  // Reserved dual IR stages. Unloaded stages are transparent, and never allocate in process().
  vm::StereoIRStage microphoneIR;
  vm::StereoIRStage reverbIR;
+ vm::IRStageHandoff micHandoff,reverbHandoff;
  void apply() noexcept;
 };
 }

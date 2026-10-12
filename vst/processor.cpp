@@ -46,6 +46,17 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
   }
   apply();
  }
+ // Adopt prebuilt IR engines only at audio-block boundaries; no allocations here.
+ auto* micLoaded=micHandoff.acquireAudio();
+ auto* reverbLoaded=reverbHandoff.acquireAudio();
+ vm::StereoIRStage* mic=micLoaded?micLoaded:&microphoneIR;
+ vm::StereoIRStage* rev=reverbLoaded?reverbLoaded:&reverbIR;
+ mic->setMix(params[kMicMix-kInput]);
+ mic->setWetLevel(params[kMicLevel-kInput]*4.f);
+ mic->setPredelayNormalized(params[kMicPredelay-kInput]);
+ rev->setMix(params[kReverbMix-kInput]);
+ rev->setWetLevel(params[kReverbLevel-kInput]*4.f);
+ rev->setPredelayNormalized(params[kReverbPredelay-kInput]);
  if(data.numSamples<=0)return kResultOk;
  if(data.numInputs<1||data.numOutputs<1||!data.inputs||!data.outputs)return kResultFalse;
  auto& input=data.inputs[0];auto& output=data.outputs[0];
@@ -71,7 +82,7 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
  // Both prepared IR stages use latency-aligned dry/wet paths.
  // Unloaded stages are identity; global bypass remains absolute.
  if(channels==2 && params[kBypass-kInput]<.5f &&
-    (microphoneIR.ready()||reverbIR.ready())) {
+    (mic->ready()||rev->ready())) {
   for(int32 n=0;n<data.numSamples;++n){
    float l=input.channelBuffers32[0][n];
    float r=input.channelBuffers32[1][n];
@@ -79,16 +90,16 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
    if(!std::isfinite(r))r=0.f;
    float nextL=0.f,nextR=0.f;
    const bool microphonePre=params[kMicPosition-kInput]<.5f;
-   if(microphonePre&&microphoneIR.ready()){
-    microphoneIR.process(l,r,nextL,nextR);l=nextL;r=nextR;
+   if(microphonePre&&mic->ready()){
+    mic->process(l,r,nextL,nextR);l=nextL;r=nextR;
    }
    l=dsp[0].processSample(l);
    r=dsp[1].processSample(r);
-   if(!microphonePre&&microphoneIR.ready()){
+   if(!microphonePre&&mic->ready()){
     microphoneIR.process(l,r,nextL,nextR);l=nextL;r=nextR;
    }
-   if(reverbIR.ready()){
-    reverbIR.process(l,r,nextL,nextR);l=nextL;r=nextR;
+   if(rev->ready()){
+    rev->process(l,r,nextL,nextR);l=nextL;r=nextR;
    }
    output.channelBuffers32[0][n]=l;
    output.channelBuffers32[1][n]=r;
