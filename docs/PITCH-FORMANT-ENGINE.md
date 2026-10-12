@@ -69,3 +69,18 @@ printed in the Actions log. Shared GitHub runner timing is *diagnostic* and
 not a release gate. The numbers include instrumented callback overhead.
 Measurements with loaded long dense IRs and live Studio One speech are
 still required for release.
+
+## Dense dual-IR CPU stress fixture
+
+The existing realtime probe now also includes dual-IR cases at 48/96 kHz:
+700 ms deterministic, *fully dense* 4-channel microphone IR (true stereo)
+and 700 ms 2-channel reverb IR, running at 128 samples/block. Both are
+prebuilt before timing; audio callback has no IR preparation or file I/O.
+The signal path includes pitch/formant, tone/dynamics, two convolutions,
+automated pitch/formant and bypass changes. The profile records mean,
+p95/p99/max, deadline misses, and dynamic C++ allocation count.
+
+This fixture addresses the missing loaded-IR CPU case. Timing on shared
+CI remains diagnostic; real Windows DAW p99/deadline QA is still required.
+The synthesized densely populated IRs are *not* a substitute for licensed
+real microphone, reverb and vocal recordings in the final listening tests.

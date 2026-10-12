@@ -44,7 +44,27 @@ struct Metrics {
  int overruns=0;
  std::size_t allocations=0;
 };
-Metrics profile(int rate) {
+vm::WaveIR makeDenseIR(int rate,int durationMs,bool trueStereo){
+ vm::WaveIR wave;
+ wave.sampleRate=static_cast<unsigned>(rate);
+ wave.channels=trueStereo?4:2;
+ const std::size_t frames=static_cast<std::size_t>(rate)*durationMs/1000;
+ wave.interleaved.resize(frames*wave.channels);
+ for(std::size_t n=0;n<frames;++n){
+  const float envelope=std::exp(-6.f*static_cast<float>(n)/static_cast<float>(frames));
+  const float a=(n==0?1.f:0.f)+envelope*.012f*std::sin(.41f*n+.1f);
+  const float b=(n==0?.8f:0.f)+envelope*.013f*std::sin(.29f*n+.4f);
+  const auto offset=n*wave.channels;
+  wave.interleaved[offset]=a;
+  wave.interleaved[offset+1]=b;
+  if(trueStereo){
+   wave.interleaved[offset+2]=envelope*.005f*std::sin(.33f*n+.7f);
+   wave.interleaved[offset+3]=envelope*.005f*std::sin(.37f*n+.2f);
+  }
+ }
+ return wave;
+}
+Metrics profile(int rate,bool dense=false) {
  vm::PitchFormantDSP spectral;
  assert(spectral.prepare(rate));
  spectral.setPitchSemitones(-8.f);
@@ -53,6 +73,21 @@ Metrics profile(int rate) {
  left.prepare(rate);right.prepare(rate);
  vm::FixedLatencyIRChain chain;
  chain.preparePitchLatency(static_cast<std::size_t>(spectral.latencySamples()));
+ vm::StereoIRStage mic,reverb;
+ vm::StereoIRStage* micPtr=nullptr;
+ vm::StereoIRStage* revPtr=nullptr;
+ if(dense){
+  // Exact same full signal path as the empty-IR probe, but both FFT stages
+  // are filled with reproducible non-sparse 700 ms IRs. PRE microphone uses
+  // true-stereo (4 convolution paths) and reverb uses stereo (2 paths).
+  const auto micWave=makeDenseIR(rate,700,true);
+  const auto revWave=makeDenseIR(rate,700,false);
+  assert(mic.prepare(micWave,rate)&&reverb.prepare(revWave,rate));
+  mic.setMix(.5f);reverb.setMix(.4f);
+  mic.setWetLevel(.8f);reverb.setWetLevel(.8f);
+  micPtr=&mic;revPtr=&reverb;
+ }
+
  assert(chain.latencySamples()==static_cast<std::size_t>(spectral.latencySamples())+256);
  const auto latency=chain.latencySamples();
  assert(latency>=256&&latency<30000);
@@ -66,13 +101,14 @@ Metrics profile(int rate) {
  for(int n=0;n<rate;++n){
   float l=0,r=0;
   chain.process(a[n%kBlock],b[n%kBlock],l,r,
-                left,right,nullptr,nullptr,true,false,&spectral);
+                left,right,micPtr,revPtr,true,false,&spectral);
   assert(std::isfinite(l)&&std::isfinite(r));
  }
+ const int blocks=dense?180:kBlocks;
  std::vector<double> durations;
- durations.reserve(kBlocks);
+ durations.reserve(blocks);
  gAllocations.store(0,std::memory_order_relaxed);
- for(int block=0;block<kBlocks;++block) {
+ for(int block=0;block<blocks;++block) {
   const auto start=Clock::now();
   gTrack.store(true,std::memory_order_relaxed);
   if(block%32==0) {
@@ -82,7 +118,7 @@ Metrics profile(int rate) {
   }
   float lastL=0,lastR=0;
   for(int n=0;n<kBlock;++n){
-   chain.process(a[n],b[n],lastL,lastR,left,right,nullptr,nullptr,
+   chain.process(a[n],b[n],lastL,lastR,left,right,micPtr,revPtr,
                  true,block%91>=75,&spectral);
   }
   gTrack.store(false,std::memory_order_relaxed);
@@ -106,7 +142,7 @@ Metrics profile(int rate) {
 int main(){
  for(const int rate:{44100,48000,96000}){
   const Metrics m=profile(rate);
-  std::cout<<"pitch-rt rate="<<rate<<" block=128 frames, "
+  std::cout<<"pitch-rt rate="<<rate<<" ir=none block=128 frames, "
            <<"mean="<<m.meanUs<<"us p95="<<m.p95Us<<"us p99="<<m.p99Us
            <<"us max="<<m.maxUs<<"us deadline="<<m.deadlineUs
            <<"us overruns="<<m.overruns<<" cpp_allocations="<<m.allocations
@@ -114,6 +150,21 @@ int main(){
   // Allocation-free is a hard gate; shared runner timing remains diagnostic.
   if(m.allocations!=0){
    std::cerr<<"FAIL: audio callback made C++ heap allocations\n";
+   return 1;
+  }
+ }
+ // Realistic worst-case convolution density is deliberately a separate
+ // measured profile, not silently conflated with IR-free CPU usage.
+ for(const int rate:{48000,96000}){
+  const Metrics m=profile(rate,true);
+  std::cout<<"pitch-rt rate="<<rate
+           <<" ir=700ms true-stereo-mic+stereo-reverb block=128 frames, "
+           <<"mean="<<m.meanUs<<"us p95="<<m.p95Us<<"us p99="<<m.p99Us
+           <<"us max="<<m.maxUs<<"us deadline="<<m.deadlineUs
+           <<"us overruns="<<m.overruns<<" cpp_allocations="<<m.allocations
+           <<"\n";
+  if(m.allocations!=0){
+   std::cerr<<"FAIL: dense IR callback made C++ heap allocations\n";
    return 1;
   }
  }
