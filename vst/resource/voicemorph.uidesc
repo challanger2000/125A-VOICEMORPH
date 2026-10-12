@@ -65,7 +65,23 @@
   <view class="CTextEdit" origin="161, 445" size="110, 25" control-tag="P117" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
   <view class="CTextLabel" origin="304, 445" size="138, 23" title="FORMANT" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
   <view class="CTextEdit" origin="447, 445" size="110, 25" control-tag="P118" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CTextLabel" origin="18, 492" size="540, 23" title="EDIT VALUES / HOST AUTOMATION" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
+  <!-- Pitch and formant remain separate existing VST3 parameters.
+       In these asymmetric semitone ranges, 0 st is at 2/3 and 4/7
+       respectively, NOT at physical 50 percent. -->
+  <view class="CSlider" origin="18, 471" size="253, 15" control-tag="P117"
+        default-value="0.666666667" orientation="horizontal" mode="free click"
+        draw-frame="true" draw-back="true" draw-value="true"
+        draw-value-from-center="false" frame-width="1"
+        draw-frame-color="Outline" draw-back-color="Field" draw-value-color="Accent"/>
+  <view class="CSlider" origin="304, 471" size="253, 15" control-tag="P118"
+        default-value="0.571428571" orientation="horizontal" mode="free click"
+        draw-frame="true" draw-back="true" draw-value="true"
+        draw-value-from-center="false" frame-width="1"
+        draw-frame-color="Outline" draw-back-color="Field" draw-value-color="Accent"/>
+  <!-- Thin ticks below the tracks show 0 semitones, not range midpoints. -->
+  <view class="CViewContainer" origin="186, 487" size="2, 4" background-color="Accent" transparent="false" mouse-enabled="false"/>
+  <view class="CViewContainer" origin="448, 487" size="2, 4" background-color="Accent" transparent="false" mouse-enabled="false"/>
+  <view class="CTextLabel" origin="18, 493" size="540, 21" title="PITCH -12..+6 st   /   FORMANT -8..+6 st  |  CTRL+CLICK RESET" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
   </view>
   <view class="CViewContainer" origin="632, 77" size="348, 520" background-color="Panel" transparent="false" sub-controller="IRLoader">
   <view class="CTextLabel" origin="16, 14" size="312, 23" title="DUAL IMPULSE RESPONSES" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>

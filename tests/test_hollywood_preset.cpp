@@ -46,7 +46,37 @@ int main(int argc,char** argv){
   assert(has(xml,tag));
   assert(has(xml,"control-tag=\"P"+std::to_string(id)+"\""));
  }
+ // Separate VST3-bound mouse sliders must be present as well as the
+ // editable text fields. They must use each parameter's actual neutral
+ // default instead of mistakenly assuming normalized 0.5 means 0 st.
+ const auto sliderFor=[&](int id){
+  const auto needle=std::string("<view class=\"CSlider\"");
+  std::size_t pos=0;
+  while((pos=xml.find(needle,pos))!=std::string::npos){
+   const auto end=xml.find("/>",pos);
+   assert(end!=std::string::npos);
+   const auto view=xml.substr(pos,end-pos+2);
+   if(has(view,"control-tag=\"P"+std::to_string(id)+"\""))
+    return view;
+   pos=end+2;
+  }
+  return std::string{};
+ };
+ const auto pitchSlider=sliderFor(117);
+ const auto formantSlider=sliderFor(118);
+ assert(!pitchSlider.empty()&&!formantSlider.empty());
+ for(const auto& slider:{pitchSlider,formantSlider}){
+  assert(has(slider,"orientation=\"horizontal\""));
+  assert(has(slider,"draw-value=\"true\""));
+  assert(has(slider,"draw-value-from-center=\"false\""));
+  assert(has(slider,"mode=\"free click\""));
+ }
+ assert(has(pitchSlider,"default-value=\"0.666666667\""));
+ assert(has(formantSlider,"default-value=\"0.571428571\""));
+ assert(has(pitchSlider,"origin=\"18, 471\""));
+ assert(has(formantSlider,"origin=\"304, 471\""));
+ assert(has(xml,"title=\"PITCH -12..+6 st"));
  for(const char* tag:{"LoadMic","LoadRev","ClearMic","ClearRev"})
   assert(has(xml,std::string("control-tag=\"")+tag+"\""));
- std::cout<<"Two one-click voice presets, 19 existing parameter bindings and IR controls PASS\n";
+ std::cout<<"Two presets, independent pitch/formant sliders, 19 existing parameters and IR controls PASS\n";
 }
