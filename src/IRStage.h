@@ -22,8 +22,8 @@ public:
   const std::size_t latency=replacement.latencySamples();
   std::array<std::vector<float>,2> nextDry, nextWet;
   for(int c=0;c<2;++c) {
-   nextDry[c].assign(latency+1,0.f);
-   nextWet[c].assign(predelaySamples+1,0.f);
+   nextDry[c].assign(latency,0.f);
+   nextWet[c].assign(std::max<std::size_t>(1,predelaySamples),0.f);
   }
   convolution_=std::move(replacement);
   dry_=std::move(nextDry);wet_=std::move(nextWet);
