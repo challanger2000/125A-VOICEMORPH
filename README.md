@@ -24,4 +24,6 @@ All algorithms and parameter defaults are **provisional until measured**. Pitch 
 - All new GUI work: static design and approved master assets first, then VSTGUI.
 - Technical scope and test gates: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/QA-PLAN.md](docs/QA-PLAN.md).
 
-**Status:** architecture and acceptance contracts only. No working VST3, implemented voice DSP, IR engine, GUI, CI PASS, or DAW verification is claimed.
+**Status (2026-10-12):** Active VST3 development build; automated Windows CI compiles the plugin and runs 47 Steinberg Validator checks plus DSP/functional and allocation/CPU stress probes. The processor contains spectral pitch/formant shifting, voice-tone/dynamics, microphone and reverb IR load/clear, partitioned convolution, gain/peak telemetry and a development VSTGUI with 100/150% zoom. This is **not** the final approved GUI or a release. Host GUI attach/reopen, level-matched real-speech listening, long-term DAW operation, IR state portability and the final 125A release audit are not yet signed off. Check the latest GitHub Actions run for exact passing-test counts. 
+- Normal audio arrangements: Mono→Mono, Mono→Stereo, Stereo→Stereo. Host buffers: 32-bit and 64-bit floating point (internal DSP remains float).
+- Current project state v6 stores **paths to IR files**, not the IR data. Preset/DAW projects require those files to remain accessible. Portable embedded IR recall is a release blocker still to be designed and tested.

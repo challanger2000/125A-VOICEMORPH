@@ -30,6 +30,9 @@ public:
  tresult PLUGIN_API notify(Vst::IMessage*) SMTG_OVERRIDE;
  tresult PLUGIN_API setupProcessing(Vst::ProcessSetup&) SMTG_OVERRIDE;
  tresult PLUGIN_API canProcessSampleSize(int32) SMTG_OVERRIDE;
+ tresult PLUGIN_API setBusArrangements(
+  Vst::SpeakerArrangement* inputs,int32 numIns,
+  Vst::SpeakerArrangement* outputs,int32 numOuts) SMTG_OVERRIDE;
  uint32 PLUGIN_API getLatencySamples() SMTG_OVERRIDE;
  tresult PLUGIN_API process(Vst::ProcessData&) SMTG_OVERRIDE;
  tresult PLUGIN_API getState(IBStream*) SMTG_OVERRIDE;

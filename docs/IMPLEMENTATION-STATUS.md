@@ -1,15 +1,22 @@
-# Status of first source commit
+# VOICEMORPH – implementation status (2026-10-12)
 
-This commit creates a standalone native C++17 **voice-DSP research core**, not a VST3 plugin.
+**Development branch:** `develop/v1.0.0`. **Release status:** NOT FINAL.
 
-Implemented: input/output trims -12..+12 dB, atomic peak telemetry, optional low-cut, de-nasal test peak filter, chest, warmth, presence, harmonic texture and simple dynamics.
+Working source areas:
+- Windows x64 VST3 processor and controller, pinned Steinberg SDK 3.8.1.
+- Stereo spectral pitch (-12 to +6 semitones) and independent formant shift (-8 to +6 st), plus vocal filters, dynamics and gain.
+- Stereo/true-stereo WAV microphone and reverb IR loaders on a background thread; FFT partitioned convolution with 128-sample per-IR delay.
+- Lock-free parameter state mailbox, v1-v6 state migration, MIDI-independent host automation at sample offsets, physical-value text editing.
+- 32/64-bit floating-point host audio buffers and 100/150% development editor.
 
-**Not implemented:** pitch shifter, formant shifting, WAV IR loading, MIC and REVERB convolution, true-stereo routing, VST3 factory/processor/controller, editor and DAW recall.
+Verified as of Windows Actions run 38288695940: 47/47 VST3 Validator tests, 22/22 standalone tests, allocation-free C++ callback diagnostics with synthetic loaded IRs. The latest bus-routing and mono-to-stereo test changes require a new CI result; do not count them as PASS prematurely.
 
-All acoustic centers and gain curves are **EMPIRICALLY TUNED placeholders** pending analysis of representative speech, NOT validated narrator-style presets. Meters are peak-since-reset only, not yet ballistic GUI meters.
+**Release blockers:**
+1. Validated GUI master visuals and Studio One attach/open/close/reopen/zoom, host text edits and IR file selection.
+2. Natural speaking-voice listening and acoustic metrics (sibilants, breath, formant coloration, consonants, noisy/unvoiced portions).
+3. Full 125A Plugin Tester and host torture (PDC, offline render, latency, small buffers, channel routing, sample rate changes).
+4. IR project portability: v6 saves the IR **file path**, not self-contained audio data; unavailable files cannot be recalled on another machine.
+5. Safe audible transitions during IR swaps and automation, long IR memory limits, error recovery and full preset lifetime tests.
+6. Full release packaging, license/demo implementation where required, installer and QA handoff.
 
-No code here is approved for release. Do not report a VST3 or Steinberg Validator PASS.
-
-The C++ core has been locally compiled with CMake / GCC and its initial tests passed. Windows GitHub Actions status requires verification after commit.
-
-IR reference stage: bounded 4096-tap direct FIR, mono channel, control-thread setup, dry/wet logic and deterministic impulse tests. This is NOT the planned long-IR partitioned convolution and does NOT yet load WAVs or run in the plugin.
+The earlier first-commit status statement referring to a bare research DSP core is obsolete.

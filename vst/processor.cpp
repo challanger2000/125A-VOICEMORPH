@@ -3,6 +3,8 @@
 #include "IRLoadInfo.h"
 #include "ParameterPointCursor.h"
 #include "VoiceSampleFormat.h"
+#include "VoiceBusLayout.h"
+#include "pluginterfaces/vst/vstspeaker.h"
 #include "base/source/fstreamer.h"
 #include "pluginterfaces/base/ibstream.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
@@ -175,6 +177,19 @@ tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
 uint32 PLUGIN_API VMProcessor::getLatencySamples(){
  return totalLatencySamples.load(std::memory_order_acquire);
 }
+tresult PLUGIN_API VMProcessor::setBusArrangements(
+ Vst::SpeakerArrangement* inputs,int32 numIns,
+ Vst::SpeakerArrangement* outputs,int32 numOuts){
+ if(!inputs||!outputs||numIns!=1||numOuts!=1)return kResultFalse;
+ const auto channels=[](Vst::SpeakerArrangement arrangement) noexcept ->int {
+  if(arrangement==Vst::SpeakerArr::kMono)return 1;
+  if(arrangement==Vst::SpeakerArr::kStereo)return 2;
+  return 0;
+ };
+ if(!vm::supportedVoiceBusLayout(channels(inputs[0]),channels(outputs[0])))
+  return kResultFalse;
+ return AudioEffect::setBusArrangements(inputs,numIns,outputs,numOuts);
+}
 tresult PLUGIN_API VMProcessor::canProcessSampleSize(int32 n){
  return (n==Vst::kSample32||n==Vst::kSample64)?kResultTrue:kResultFalse;
 }
@@ -264,18 +279,22 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
  auto& input=data.inputs[0];auto& output=data.outputs[0];
  const bool sample64=data.symbolicSampleSize==Vst::kSample64;
  if(!sample64&&data.symbolicSampleSize!=Vst::kSample32)return kResultFalse;
- const int32 channels=std::min({input.numChannels,output.numChannels,2});
- if(channels<1)return kResultFalse;
+ const int32 inputChannels=input.numChannels;
+ const int32 outputChannels=output.numChannels;
+ if(!vm::supportedVoiceBusLayout(inputChannels,outputChannels))
+  return kResultFalse;
  if(sample64){
   if(!input.channelBuffers64||!output.channelBuffers64)return kResultFalse;
-  for(int32 channel=0;channel<channels;++channel)
-   if(!input.channelBuffers64[channel]||!output.channelBuffers64[channel])
-    return kResultFalse;
+  for(int32 channel=0;channel<inputChannels;++channel)
+   if(!input.channelBuffers64[channel])return kResultFalse;
+  for(int32 channel=0;channel<outputChannels;++channel)
+   if(!output.channelBuffers64[channel])return kResultFalse;
  }else{
   if(!input.channelBuffers32||!output.channelBuffers32)return kResultFalse;
-  for(int32 channel=0;channel<channels;++channel)
-   if(!input.channelBuffers32[channel]||!output.channelBuffers32[channel])
-    return kResultFalse;
+  for(int32 channel=0;channel<inputChannels;++channel)
+   if(!input.channelBuffers32[channel])return kResultFalse;
+  for(int32 channel=0;channel<outputChannels;++channel)
+   if(!output.channelBuffers32[channel])return kResultFalse;
  }
  // Both VST3 precisions use the same internal float voice/spectral/IR DSP.
  // All 64-bit host samples are checked before float conversion; huge/nonfinite
@@ -296,7 +315,7 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
  // Individual VoiceDSP instances already reject non-finite input values.
  // Snapshot dry signal before modifying any buffers (VST3 in-place processing).
  float dryPeak[2]={0.f,0.f};
- for(int32 channel=0;channel<channels;++channel){
+ for(int32 channel=0;channel<inputChannels;++channel){
   for(int32 i=0;i<data.numSamples;++i)
    dryPeak[channel]=std::max(dryPeak[channel],std::fabs(readInput(channel,i)));
  }
@@ -307,17 +326,18 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
   const bool pre=params[kMicPosition-kInput]<.5f;
   const bool bypass=params[kBypass-kInput]>=.5f;
   const float inL=readInput(0,n);
-  const float inR=channels>1?readInput(1,n):0.f;
+  const float inR=vm::rightVoiceInput(
+   inL,inputChannels>1?readInput(1,n):0.f,inputChannels,outputChannels);
   float outL=0.f,outR=0.f;
   fixedIRChain.process(inL,inR,outL,outR,
                        dsp[0],dsp[1],mic,rev,pre,bypass,&pitchEngine);
   writeOutput(0,n,outL);
-  if(channels>1)writeOutput(1,n,outR);
+  if(outputChannels>1)writeOutput(1,n,outR);
  }
  // An event at the exact end of a block becomes the initial value of the
  // *next* block; do not apply it to already rendered samples.
  applyAutomationAt(data.numSamples);
- for(int32 ch=channels;ch<output.numChannels;++ch){
+ for(int32 ch=outputChannels;ch<output.numChannels;++ch){
   if(sample64){
    if(output.channelBuffers64[ch])
     std::fill_n(output.channelBuffers64[ch],data.numSamples,0.);
@@ -327,7 +347,7 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
  output.silenceFlags=0;
  // Measure final output, including bypass and optional IR processing.
  float meterOutput[2]={0.f,0.f};
- for(int32 channel=0;channel<channels;++channel) {
+ for(int32 channel=0;channel<outputChannels;++channel) {
   for(int32 i=0;i<data.numSamples;++i){
    const float rendered=sample64
     ?vm::audioToFloat(output.channelBuffers64[channel][i])
