@@ -1,6 +1,7 @@
 #include "controller.h"
 #include "ids.h"
 #include "MeterUnits.h"
+#include "IRLoadInfo.h"
 #include "pluginterfaces/base/ustring.h"
 #include "base/source/fstreamer.h"
 #include "pluginterfaces/vst/ivstmessage.h"
@@ -13,8 +14,17 @@
 #include <algorithm>
 #include <string>
 namespace Steinberg {
+tresult VMController::clearIRFile(bool microphone){
+ auto message=owned(allocateMessage());
+ if(!message)return kResultFalse;
+ message->setMessageID("125A.ClearIR");
+ auto* attributes=message->getAttributes();
+ if(!attributes||attributes->setInt("microphone",microphone?1:0)!=kResultOk)
+  return kResultFalse;
+ return sendMessage(message);
+}
 tresult VMController::requestIRFile(const std::string& utf8Path,bool microphone){
- if(utf8Path.empty()||utf8Path.size()>4096||utf8Path.find('\0')!=std::string::npos)return kInvalidArgument;
+ if(!vm::validIRPath(utf8Path))return kInvalidArgument;
  auto message=owned(allocateMessage());
  if(!message)return kResultFalse;
  message->setMessageID("125A.LoadIR");
@@ -35,6 +45,7 @@ public:
  void valueChanged(VSTGUI::CControl* control) override {
   if(!control||control->getValueNormalized()<=.5f)return;
   const int tag=control->getTag();
+  if(tag==1002||tag==1003){owner->clearIRFile(tag==1002);return;}
   if(tag!=1000&&tag!=1001)return;
   auto* frame=editor?editor->getFrame():nullptr;
   if(!frame)return;
@@ -91,6 +102,8 @@ tresult PLUGIN_API VMController::initialize(FUnknown* context){
  parameters.addParameter(STR16("Output Peak R"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kOutputPeakR);
  parameters.addParameter(STR16("Mic IR Status"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kMicIRStatus);
  parameters.addParameter(STR16("Reverb IR Status"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kReverbIRStatus);
+ parameters.addParameter(STR16("Mic IR Error"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kMicIRError);
+ parameters.addParameter(STR16("Reverb IR Error"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kReverbIRError);
  return kResultOk;
 }
 tresult PLUGIN_API VMController::setComponentState(IBStream* stream){
@@ -127,6 +140,12 @@ tresult PLUGIN_API VMController::getParamStringByValue(Vst::ParamID id,Vst::Para
    std::snprintf(display,sizeof(display),"%.0f ms",value*2000.);
   else std::snprintf(display,sizeof(display),"%s",value<.5?"PRE":"POST");
   UString(string,128).fromAscii(display);
+  return kResultTrue;
+ }
+ if(id==kMicIRError||id==kReverbIRError){
+  if(!std::isfinite(value))value=0.;
+  const int code=std::clamp(static_cast<int>(std::lround(value*5.)),0,5);
+  UString(string,128).fromAscii(vm::irErrorLabel(code));
   return kResultTrue;
  }
  if(id==kMicIRStatus||id==kReverbIRStatus) {

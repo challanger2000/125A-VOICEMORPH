@@ -20,6 +20,10 @@
 <control-tag name="P116" tag="116"/>
 <control-tag name="LoadMic" tag="1000"/>
 <control-tag name="LoadRev" tag="1001"/>
+<control-tag name="ClearMic" tag="1002"/>
+<control-tag name="ClearRev" tag="1003"/>
+<control-tag name="MicError" tag="206"/>
+<control-tag name="RevError" tag="207"/>
 <control-tag name="MicStatus" tag="204"/>
 <control-tag name="RevStatus" tag="205"/></control-tags>
  <gradients><gradient name="Button"><color-stop rgba="#45586bff" start="0"/><color-stop rgba="#273644ff" start="1"/></gradient><gradient name="ButtonActive"><color-stop rgba="#6eaed6ff" start="0"/><color-stop rgba="#326886ff" start="1"/></gradient></gradients>
@@ -52,10 +56,12 @@
   </view>
   <view class="CViewContainer" origin="632, 77" size="348, 520" background-color="Panel" transparent="false" sub-controller="IRLoader">
   <view class="CTextLabel" origin="16, 14" size="312, 23" title="DUAL IMPULSE RESPONSES" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
+  <view class="CTextButton" origin="215, 52" size="116, 27" title="CLEAR MIC" control-tag="ClearMic" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/>
   <view class="CTextLabel" origin="16, 54" size="210, 23" title="MICROPHONE IR" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
   <view class="CTextButton" origin="16, 82" size="145, 32" title="LOAD MIC WAV" control-tag="LoadMic" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/>
   <view class="CTextLabel" origin="167, 87" size="62, 23" title="STATUS" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
   <view class="CTextLabel" origin="226, 87" size="105, 25" control-tag="MicStatus" title="EMPTY" font-color="Accent" back-color="Field" frame-color="Outline" frame-width="1"/>
+  <view class="CTextLabel" origin="173, 113" size="156, 20" control-tag="MicError" title="OK" font="~ NormalFont" font-color="Accent" text-alignment="left" transparent="true"/>
   <view class="CTextLabel" origin="16, 138" size="112, 23" title="MIX" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
   <view class="CTextEdit" origin="135, 138" size="100, 25" control-tag="P110" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
   <view class="CTextLabel" origin="16, 176" size="112, 23" title="LEVEL" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
@@ -65,10 +71,12 @@
   <view class="CTextLabel" origin="16, 252" size="112, 23" title="PREDELAY" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
   <view class="CTextEdit" origin="135, 252" size="100, 25" control-tag="P115" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
   <view class="CViewContainer" origin="13, 292" size="320, 1" background-color="Outline" transparent="false"/>
+  <view class="CTextButton" origin="215, 306" size="116, 27" title="CLEAR REVERB" control-tag="ClearRev" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/>
   <view class="CTextLabel" origin="16, 308" size="210, 23" title="REVERB IR" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
   <view class="CTextButton" origin="16, 336" size="145, 32" title="LOAD REVERB WAV" control-tag="LoadRev" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/>
   <view class="CTextLabel" origin="167, 341" size="62, 23" title="STATUS" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
   <view class="CTextLabel" origin="226, 341" size="105, 25" control-tag="RevStatus" title="EMPTY" font-color="Accent" back-color="Field" frame-color="Outline" frame-width="1"/>
+  <view class="CTextLabel" origin="173, 367" size="156, 20" control-tag="RevError" title="OK" font="~ NormalFont" font-color="Accent" text-alignment="left" transparent="true"/>
   <view class="CTextLabel" origin="16, 395" size="112, 23" title="MIX" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
   <view class="CTextEdit" origin="135, 395" size="100, 25" control-tag="P112" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
   <view class="CTextLabel" origin="16, 433" size="112, 23" title="LEVEL" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>

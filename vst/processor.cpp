@@ -1,5 +1,6 @@
 #include "processor.h"
 #include "ids.h"
+#include "IRLoadInfo.h"
 #include "base/source/fstreamer.h"
 #include "pluginterfaces/base/ibstream.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
@@ -27,8 +28,13 @@ void VMProcessor::queueIRJob(std::string path,bool mic){
  {
   std::lock_guard<std::mutex> lock(irJobMutex);
   // Each slot coalesces independently; the latest selection is authoritative.
-  if(mic){micJobPath=std::move(path);hasMicJob=true;++micRevision;micIRStatus.store(1);}
-  else{reverbJobPath=std::move(path);hasReverbJob=true;++reverbRevision;reverbIRStatus.store(1);}
+  if(mic){
+   micJobPath=std::move(path);hasMicJob=true;++micRevision;
+   micIRStatus.store(1);micIRError.store(0);
+  }else{
+   reverbJobPath=std::move(path);hasReverbJob=true;++reverbRevision;
+   reverbIRStatus.store(1);reverbIRError.store(0);
+  }
  }
  irJobWake.notify_one();
 }
@@ -69,13 +75,17 @@ void VMProcessor::irWorkerLoop(){
      micHandoff.publishLatest(prepared);
      micStatePath=path;
      micIRStatus.store(path.empty()?0:2,std::memory_order_release);
+     micIRError.store(0,std::memory_order_release);
     }else{
      reverbHandoff.reclaimControl();
      reverbHandoff.publishLatest(prepared);
      reverbStatePath=path;
      reverbIRStatus.store(path.empty()?0:2,std::memory_order_release);
+     reverbIRError.store(0,std::memory_order_release);
     }
    }else{
+    (mic?micIRError:reverbIRError).store(
+     static_cast<int32_t>(vm::identifyIRError(error)),std::memory_order_release);
     (mic?micIRStatus:reverbIRStatus).store(3,std::memory_order_release);
    }
    // Failed files retain the last valid stage and path; the GUI can retry.
@@ -83,19 +93,24 @@ void VMProcessor::irWorkerLoop(){
  }
 }
 tresult PLUGIN_API VMProcessor::notify(Vst::IMessage* message){
- if(!message||!message->getMessageID()||std::strcmp(message->getMessageID(),"125A.LoadIR")!=0)
+ if(!message||!message->getMessageID())return AudioEffect::notify(message);
+ const bool clear=std::strcmp(message->getMessageID(),"125A.ClearIR")==0;
+ if(!clear&&std::strcmp(message->getMessageID(),"125A.LoadIR")!=0)
   return AudioEffect::notify(message);
  auto* attributes=message->getAttributes();
  if(!attributes)return kInvalidArgument;
  int64 microphone=0;
- const void* raw=nullptr;uint32 length=0;
  if(attributes->getInt("microphone",microphone)!=kResultOk||
-    attributes->getBinary("utf8Path",raw,length)!=kResultOk||
-    !raw||length==0||length>4096)return kInvalidArgument;
- const auto* chars=static_cast<const char*>(raw);
- if(std::memchr(chars,0,length))return kInvalidArgument;
- const std::string path(chars,chars+length);
- queueIRJob(path,microphone!=0);
+    (microphone!=0&&microphone!=1))return kInvalidArgument;
+ std::string path;
+ if(!clear){
+  const void* raw=nullptr;uint32 length=0;
+  if(attributes->getBinary("utf8Path",raw,length)!=kResultOk||
+     !raw||length==0||length>4096)return kInvalidArgument;
+  path.assign(static_cast<const char*>(raw),static_cast<const char*>(raw)+length);
+ }
+ if(!vm::validIRPath(path,clear))return kInvalidArgument;
+ queueIRJob(std::move(path),microphone!=0);
  return kResultOk;
 }
 tresult PLUGIN_API VMProcessor::initialize(FUnknown* context){
@@ -133,6 +148,9 @@ tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
    std::lock_guard<std::mutex> lock(irJobMutex);
    micJobPath=micStatePath;hasMicJob=true;++micRevision;
    reverbJobPath=reverbStatePath;hasReverbJob=true;++reverbRevision;
+   micIRStatus.store(micStatePath.empty()?0:1);
+   reverbIRStatus.store(reverbStatePath.empty()?0:1);
+   micIRError.store(0);reverbIRError.store(0);
   }
   irJobWake.notify_one();
  }
@@ -235,6 +253,14 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
    auto* queue=data.outputParameterChanges->addParameterData(statusIds[i],index);
    if(queue){int32 point=0;queue->addPoint(data.numSamples-1,statuses[i],point);}
   }
+  const Vst::ParamID errorIds[2]={kMicIRError,kReverbIRError};
+  const double errors[2]={micIRError.load(std::memory_order_acquire)/5.,
+                          reverbIRError.load(std::memory_order_acquire)/5.};
+  for(int i=0;i<2;++i){
+   int32 index=0;
+   auto* queue=data.outputParameterChanges->addParameterData(errorIds[i],index);
+   if(queue){int32 point=0;queue->addPoint(data.numSamples-1,errors[i],point);}
+  }
  }
  for(auto& channelDSP:dsp)channelDSP.resetMeters();
  return kResultOk;
@@ -284,6 +310,7 @@ tresult PLUGIN_API VMProcessor::setState(IBStream* stream){
   std::lock_guard<std::mutex> lock(irJobMutex);
   micStatePath=mic;reverbStatePath=rev;
   micIRStatus.store(mic.empty()?0:1);reverbIRStatus.store(rev.empty()?0:1);
+  micIRError.store(0);reverbIRError.store(0);
   hasMicJob=hasReverbJob=true;
   micJobPath=mic;reverbJobPath=rev;
   ++micRevision;++reverbRevision;

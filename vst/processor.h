@@ -4,6 +4,7 @@
 #include "IRStage.h"
 #include "IRStageHandoff.h"
 #include "IRFileBuilder.h"
+#include "IRLoadInfo.h"
 #include "FixedLatencyIRChain.h"
 #include <string>
 #include <memory>
@@ -49,6 +50,7 @@ private:
  std::string micStatePath,reverbStatePath;
  bool preferMicJob=true;
  std::atomic<int32_t> micIRStatus{0},reverbIRStatus{0}; // empty/loading/ready/error
+ std::atomic<int32_t> micIRError{0},reverbIRError{0};
  std::uint64_t micRevision=0,reverbRevision=0;
  void irWorkerLoop();
  void queueIRJob(std::string path,bool mic);
