@@ -24,5 +24,15 @@ int main(){
  }
  nasal.denasal=0;dsp.setParameters(nasal);
  for(int n=0;n<2048;++n)assert(std::isfinite(dsp.processSample(0.f)));
+ // Each localized resonance must stay bounded across supported sample rates.
+ for(double rate:{44100.,48000.,96000.})for(double hz:{680.,1050.,1450.}){
+  dsp.prepare(rate);vm::Parameters p;p.denasal=1;dsp.setParameters(p);
+  double sum=0;
+  for(int n=0;n<static_cast<int>(rate);++n) {
+   const float y=dsp.processSample(.4f*std::sin(2*vm::pi*hz*n/rate));
+   assert(std::isfinite(y));sum+=double(y)*y;
+  }
+  assert(sum>0 && sum<rate);
+ }
  std::cout<<"Voice DSP foundation PASS\n";
 }

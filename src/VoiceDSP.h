@@ -26,10 +26,11 @@ struct Meters {
 class VoiceDSP {
  double rate=48000;
  Parameters p{};
- Biquad nose,body,warm,air;
- Biquad nasalDetector;
+ Biquad nose[3],body,warm,air;
+ Biquad nasalDetector[3];
  float inGain=1,outGain=1,envelope=0,attack=0,release=0,hpX=0,hpY=0,hpCoeff=0;
- float detectorEnvelope=0,fullEnvelope=0,denasalReduction=0,detectorAttack=0,detectorRelease=0;
+ float detectorEnvelope[3]={},fullEnvelope=0,denasalReduction[3]={};
+ float detectorAttack=0,detectorRelease=0;
  Meters meter{};
  unsigned detectorCounter=0;
  static void peak(std::atomic<float>& a,float val) noexcept {
@@ -38,9 +39,12 @@ class VoiceDSP {
  }
  void update() noexcept {
   inGain=gain(clamp(p.inputDb,-12,12));outGain=gain(clamp(p.outputDb,-12,12));
-  // Keep the static corrective notch disabled; adaptive reduction drives this biquad.
-  nose.peak(rate,920,2.1,-7*clamp(p.denasal,0,1)*denasalReduction);
-  nasalDetector.peak(rate,920,2.1,12);
+  // Three bounded resonances track nasal concentration, rather than a fixed notch.
+  constexpr double frequencies[3]={680.,1050.,1450.};
+  for(int i=0;i<3;++i){
+   nose[i].peak(rate,frequencies[i],2.0,-4.5*clamp(p.denasal,0,1)*denasalReduction[i]);
+   nasalDetector[i].peak(rate,frequencies[i],2.0,10.);
+  }
   body.peak(rate,165,.72,4*clamp(p.chest,0,1));
   warm.peak(rate,390,.85,2.5*clamp(p.warmth,0,1));
   air.peak(rate,3400,.9,3*clamp(p.presence,0,1));
@@ -52,8 +56,9 @@ public:
  VoiceDSP(){update();}
  void prepare(double sr) noexcept {
   rate=(sr>=8000&&sr<=384000)?sr:48000;
-  nose.reset();nasalDetector.reset();body.reset();warm.reset();air.reset();envelope=hpX=hpY=0;
-  detectorEnvelope=fullEnvelope=denasalReduction=0;detectorCounter=0;update();meter.reset();
+  for(int i=0;i<3;++i){nose[i].reset();nasalDetector[i].reset();detectorEnvelope[i]=0;denasalReduction[i]=0;}
+  body.reset();warm.reset();air.reset();envelope=hpX=hpY=fullEnvelope=0;
+  detectorCounter=0;update();meter.reset();
  }
  void setParameters(const Parameters& next) noexcept {p=next;update();}
  const Meters& meters() const noexcept {return meter;}
@@ -65,16 +70,21 @@ public:
   float x=(1-clamp(p.lowCut,0,1))*input+clamp(p.lowCut,0,1)*hp;
   // Detector compares nasal-band emphasis to broadband energy; smoothed and
   // recalculated every 128 samples to avoid audio-rate coefficient modulation.
-  const float nasalEnergy=std::fabs(nasalDetector.run(x)-x);
   const float broadband=std::fabs(x);
-  detectorEnvelope=detectorAttack*detectorEnvelope+(1-detectorAttack)*nasalEnergy;
   fullEnvelope=detectorRelease*fullEnvelope+(1-detectorRelease)*broadband;
-  const float ratio=detectorEnvelope/(fullEnvelope+1e-5f);
-  const float activity=clamp((ratio-.18f)*2.f,0.f,1.f);
-  denasalReduction+=(activity-denasalReduction)*.001f;
+  constexpr double frequencies[3]={680.,1050.,1450.};
+  for(int i=0;i<3;++i){
+   const float nasalEnergy=std::fabs(nasalDetector[i].run(x)-x);
+   detectorEnvelope[i]=detectorAttack*detectorEnvelope[i]+(1-detectorAttack)*nasalEnergy;
+   const float ratio=detectorEnvelope[i]/(fullEnvelope+1e-5f);
+   const float activity=clamp((ratio-.16f)*1.8f,0.f,1.f);
+   denasalReduction[i]+=(activity-denasalReduction[i])*.001f;
+  }
   if((++detectorCounter&127u)==0u)
-    nose.peak(rate,920,2.1,-7*clamp(p.denasal,0,1)*denasalReduction);
-  x=air.run(warm.run(body.run(nose.run(x))));
+   for(int i=0;i<3;++i)
+    nose[i].peak(rate,frequencies[i],2.0,-4.5*clamp(p.denasal,0,1)*denasalReduction[i]);
+  for(auto& filter:nose)x=filter.run(x);
+  x=air.run(warm.run(body.run(x)));
   const float drive=2*clamp(p.grit,0,1);
   if(drive>0){float d=1+drive;x=std::tanh(x*d)/std::tanh(d);}
   float v=std::fabs(x);float coeff=v>envelope?attack:release;envelope=coeff*envelope+(1-coeff)*v;
