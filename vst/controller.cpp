@@ -3,11 +3,24 @@
 #include "MeterUnits.h"
 #include "pluginterfaces/base/ustring.h"
 #include "base/source/fstreamer.h"
+#include "pluginterfaces/vst/ivstmessage.h"
 #include <cmath>
 #include <cstdio>
 #include <algorithm>
 #include <string>
 namespace Steinberg {
+tresult VMController::requestIRFile(const std::string& utf8Path,bool microphone){
+ if(utf8Path.empty()||utf8Path.size()>4096||utf8Path.find('\\0')!=std::string::npos)return kInvalidArgument;
+ auto message=owned(allocateMessage());
+ if(!message)return kResultFalse;
+ message->setMessageID("125A.LoadIR");
+ auto* attributes=message->getAttributes();
+ if(!attributes)return kResultFalse;
+ if(attributes->setInt("microphone",microphone?1:0)!=kResultOk||
+    attributes->setBinary("utf8Path",utf8Path.data(),static_cast<uint32>(utf8Path.size()))!=kResultOk)
+  return kResultFalse;
+ return sendMessage(message);
+}
 tresult PLUGIN_API VMController::initialize(FUnknown* context){
  auto r=EditControllerEx1::initialize(context);if(r!=kResultOk)return r;
  struct Def {const char16* label;Vst::ParamID id;double value;};

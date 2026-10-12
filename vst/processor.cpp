@@ -2,10 +2,31 @@
 #include "ids.h"
 #include "base/source/fstreamer.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
+#include "pluginterfaces/vst/ivstmessage.h"
+#include <string>
+#include <cstring>
 #include <algorithm>
 #include <cmath>
 namespace Steinberg {
 VMProcessor::VMProcessor(){setControllerClass(kVMControllerUID);}
+tresult PLUGIN_API VMProcessor::notify(Vst::IMessage* message){
+ if(!message||!message->getMessageID()||std::strcmp(message->getMessageID(),"125A.LoadIR")!=0)
+  return AudioEffect::notify(message);
+ auto* attributes=message->getAttributes();
+ if(!attributes)return kInvalidArgument;
+ int64 microphone=0;
+ const void* raw=nullptr;uint32 length=0;
+ if(attributes->getInt("microphone",microphone)!=kResultOk||
+    attributes->getBinary("utf8Path",raw,length)!=kResultOk||
+    !raw||length==0||length>4096)return kInvalidArgument;
+ const auto* chars=static_cast<const char*>(raw);
+ if(std::memchr(chars,0,length))return kInvalidArgument;
+ const std::string path(chars,chars+length);
+ std::string error;
+ const bool ok=microphone?loadMicIRFromFileControl(path,error):
+                          loadReverbIRFromFileControl(path,error);
+ return ok?kResultOk:kResultFalse;
+}
 tresult PLUGIN_API VMProcessor::initialize(FUnknown* context){
  auto r=AudioEffect::initialize(context);if(r!=kResultOk)return r;
  addAudioInput(STR16("Stereo In"),Vst::SpeakerArr::kStereo);

@@ -20,6 +20,7 @@ public:
  bool loadMicIRFromFileControl(const std::string& path,std::string& error);
  bool loadReverbIRFromFileControl(const std::string& path,std::string& error);
  tresult PLUGIN_API initialize(FUnknown*) SMTG_OVERRIDE;
+ tresult PLUGIN_API notify(Vst::IMessage*) SMTG_OVERRIDE;
  tresult PLUGIN_API setupProcessing(Vst::ProcessSetup&) SMTG_OVERRIDE;
  tresult PLUGIN_API canProcessSampleSize(int32) SMTG_OVERRIDE;
  tresult PLUGIN_API process(Vst::ProcessData&) SMTG_OVERRIDE;
