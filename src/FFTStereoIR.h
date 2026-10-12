@@ -1,5 +1,6 @@
 #pragma once
 #include "WaveIR.h"
+#include "IRResampler.h"
 #include "PartitionedIR.h"
 #include <array>
 #include <vector>
@@ -15,17 +16,20 @@ class FFTStereoIR {
 public:
  bool prepare(const WaveIR& ir,double hostRate) {
   if(ir.channels!=1&&ir.channels!=2&&ir.channels!=4)return false;
-  if(ir.sampleRate==0||std::fabs(static_cast<double>(ir.sampleRate)-hostRate)>.001)return false; // resampling is not silently approximated
+  if(ir.sampleRate==0||hostRate<8000||hostRate>384000)return false;
   if(ir.frames()==0||ir.interleaved.size()!=ir.frames()*ir.channels)return false;
-  if(ir.frames()>static_cast<std::size_t>(hostRate*30.0))return false;
+  WaveIR converted;
+  if(!resampleIR(ir,static_cast<unsigned>(std::lround(hostRate)),converted,
+                 static_cast<std::size_t>(hostRate*30.0)))return false;
+  const WaveIR& source=converted;
   std::array<std::vector<float>,4> taps;
-  for(auto& t:taps)t.assign(ir.frames(),0.f);
-  for(std::size_t n=0;n<ir.frames();++n) {
-   taps[0][n]=ir.interleaved[n*ir.channels];
-   taps[3][n]=ir.channels>=2?ir.interleaved[n*ir.channels+1]:taps[0][n];
-   if(ir.channels==4) {
-    taps[1][n]=ir.interleaved[n*4+2];
-    taps[2][n]=ir.interleaved[n*4+3];
+  for(auto& t:taps)t.assign(source.frames(),0.f);
+  for(std::size_t n=0;n<source.frames();++n) {
+   taps[0][n]=source.interleaved[n*source.channels];
+   taps[3][n]=source.channels>=2?source.interleaved[n*source.channels+1]:taps[0][n];
+   if(source.channels==4) {
+    taps[1][n]=source.interleaved[n*4+2];
+    taps[2][n]=source.interleaved[n*4+3];
    }
   }
   // Validate completely before modifying any DSP state.

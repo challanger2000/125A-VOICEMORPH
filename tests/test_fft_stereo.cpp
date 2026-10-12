@@ -3,12 +3,12 @@
 #include <cmath>
 #include <iostream>
 #include <limits>
-#include <limits>
 int main() {
  vm::WaveIR wave;wave.sampleRate=48000;wave.channels=4;
  wave.interleaved={1.f,.5f,.25f,.125f};
  vm::FFTStereoIR ir;
- assert(!ir.prepare(wave,44100));
+ assert(ir.prepare(wave,44100));
+ assert(ir.latencySamples()==128);
  assert(ir.prepare(wave,48000));
  float l=0,r=0;
  for(int n=0;n<260;++n){
