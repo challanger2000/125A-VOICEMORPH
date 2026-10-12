@@ -45,6 +45,7 @@ private:
  std::string micJobPath,reverbJobPath;
  std::string micStatePath,reverbStatePath;
  bool preferMicJob=true;
+ std::atomic<int32_t> micIRStatus{0},reverbIRStatus{0}; // empty/loading/ready/error
  std::uint64_t micRevision=0,reverbRevision=0;
  void irWorkerLoop();
  void queueIRJob(std::string path,bool mic);

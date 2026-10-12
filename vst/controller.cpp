@@ -4,13 +4,17 @@
 #include "pluginterfaces/base/ustring.h"
 #include "base/source/fstreamer.h"
 #include "pluginterfaces/vst/ivstmessage.h"
+#include "vstgui/lib/cfileselector.h"
+#include "vstgui/lib/controls/cbuttons.h"
+#include "vstgui/lib/cframe.h"
+#include <cstring>
 #include <cmath>
 #include <cstdio>
 #include <algorithm>
 #include <string>
 namespace Steinberg {
 tresult VMController::requestIRFile(const std::string& utf8Path,bool microphone){
- if(utf8Path.empty()||utf8Path.size()>4096||utf8Path.find('\\0')!=std::string::npos)return kInvalidArgument;
+ if(utf8Path.empty()||utf8Path.size()>4096||utf8Path.find('\0')!=std::string::npos)return kInvalidArgument;
  auto message=owned(allocateMessage());
  if(!message)return kResultFalse;
  message->setMessageID("125A.LoadIR");
@@ -20,6 +24,45 @@ tresult VMController::requestIRFile(const std::string& utf8Path,bool microphone)
     attributes->setBinary("utf8Path",utf8Path.data(),static_cast<uint32>(utf8Path.size()))!=kResultOk)
   return kResultFalse;
  return sendMessage(message);
+}
+
+namespace {
+class IRLoaderButtons final:public VSTGUI::IController {
+ Steinberg::VMController* owner;
+ VSTGUI::VST3Editor* editor;
+public:
+ IRLoaderButtons(Steinberg::VMController* controller,VSTGUI::VST3Editor* e):owner(controller),editor(e){}
+ void valueChanged(VSTGUI::CControl* control) override {
+  if(!control||control->getValueNormalized()<=.5f)return;
+  const int tag=control->getTag();
+  if(tag!=1000&&tag!=1001)return;
+  auto* frame=editor?editor->getFrame():nullptr;
+  if(!frame)return;
+  auto* chooser=VSTGUI::CNewFileSelector::create(frame,VSTGUI::CNewFileSelector::kSelectFile);
+  if(!chooser)return;
+  chooser->setTitle(tag==1000?"Load Microphone IR WAV":"Load Reverb IR WAV");
+  chooser->addFileExtension(VSTGUI::CFileExtension("Wave Audio","wav","audio/wav"));
+  chooser->setDefaultExtension(VSTGUI::CFileExtension("Wave Audio","wav","audio/wav"));
+  if(chooser->runModal()&&chooser->getNumSelectedFiles()>0){
+   const auto* selected=chooser->getSelectedFile(0);
+   if(selected)owner->requestIRFile(selected,tag==1000);
+  }
+  chooser->forget();
+ }
+};
+}
+IPlugView* PLUGIN_API VMController::createView(FIDString name){
+ if(name&&std::strcmp(name,Vst::ViewType::kEditor)==0){
+  auto* editor=new VSTGUI::VST3Editor(this,"view","voicemorph.uidesc");
+  editor->setAllowedZoomFactors({1.,1.5});
+  return editor;
+ }
+ return nullptr;
+}
+VSTGUI::IController* VMController::createSubController(VSTGUI::UTF8StringPtr name,
+ const VSTGUI::IUIDescription*,VSTGUI::VST3Editor* editor){
+ if(name&&std::strcmp(name,"IRLoader")==0)return new IRLoaderButtons(this,editor);
+ return nullptr;
 }
 tresult PLUGIN_API VMController::initialize(FUnknown* context){
  auto r=EditControllerEx1::initialize(context);if(r!=kResultOk)return r;
@@ -46,6 +89,8 @@ tresult PLUGIN_API VMController::initialize(FUnknown* context){
  parameters.addParameter(STR16("Input Peak R"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kInputPeakR);
  parameters.addParameter(STR16("Output Peak L"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kOutputPeakL);
  parameters.addParameter(STR16("Output Peak R"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kOutputPeakR);
+ parameters.addParameter(STR16("Mic IR Status"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kMicIRStatus);
+ parameters.addParameter(STR16("Reverb IR Status"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kReverbIRStatus);
  return kResultOk;
 }
 tresult PLUGIN_API VMController::setComponentState(IBStream* stream){
@@ -82,6 +127,13 @@ tresult PLUGIN_API VMController::getParamStringByValue(Vst::ParamID id,Vst::Para
    std::snprintf(display,sizeof(display),"%.0f ms",value*2000.);
   else std::snprintf(display,sizeof(display),"%s",value<.5?"PRE":"POST");
   UString(string,128).fromAscii(display);
+  return kResultTrue;
+ }
+ if(id==kMicIRStatus||id==kReverbIRStatus) {
+  if(!std::isfinite(value))value=0.;
+  const int idx=std::clamp(static_cast<int>(std::lround(value*3.)),0,3);
+  const char* labels[]={"EMPTY","LOADING","READY","ERROR"};
+  UString(string,128).fromAscii(labels[idx]);
   return kResultTrue;
  }
  if(id>=kInputPeakL&&id<=kOutputPeakR) {

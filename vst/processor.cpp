@@ -27,8 +27,8 @@ void VMProcessor::queueIRJob(std::string path,bool mic){
  {
   std::lock_guard<std::mutex> lock(irJobMutex);
   // Each slot coalesces independently; the latest selection is authoritative.
-  if(mic){micJobPath=std::move(path);hasMicJob=true;++micRevision;}
-  else{reverbJobPath=std::move(path);hasReverbJob=true;++reverbRevision;}
+  if(mic){micJobPath=std::move(path);hasMicJob=true;++micRevision;micIRStatus.store(1);}
+  else{reverbJobPath=std::move(path);hasReverbJob=true;++reverbRevision;reverbIRStatus.store(1);}
  }
  irJobWake.notify_one();
 }
@@ -68,11 +68,15 @@ void VMProcessor::irWorkerLoop(){
      micHandoff.reclaimControl();
      micHandoff.publishLatest(prepared);
      micStatePath=path;
+     micIRStatus.store(path.empty()?0:2,std::memory_order_release);
     }else{
      reverbHandoff.reclaimControl();
      reverbHandoff.publishLatest(prepared);
      reverbStatePath=path;
+     reverbIRStatus.store(path.empty()?0:2,std::memory_order_release);
     }
+   }else{
+    (mic?micIRStatus:reverbIRStatus).store(3,std::memory_order_release);
    }
    // Failed files retain the last valid stage and path; the GUI can retry.
   }
@@ -242,6 +246,14 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
      std::min(1.,static_cast<double>(std::max(0.f,values[kind]))),point);}
    }
   }
+  const Vst::ParamID statusIds[2]={kMicIRStatus,kReverbIRStatus};
+  const double statuses[2]={micIRStatus.load(std::memory_order_acquire)/3.,
+                            reverbIRStatus.load(std::memory_order_acquire)/3.};
+  for(int i=0;i<2;++i){
+   int32 index=0;
+   auto* queue=data.outputParameterChanges->addParameterData(statusIds[i],index);
+   if(queue){int32 point=0;queue->addPoint(data.numSamples-1,statuses[i],point);}
+  }
  }
  for(auto& channelDSP:dsp)channelDSP.resetMeters();
  return kResultOk;
@@ -258,9 +270,9 @@ bool writeIRPath(IBStream* stream,const std::string& path){
 bool readIRPath(IBStream* stream,std::string& path){
  int32 length=0,actual=0;
  if(stream->read(&length,sizeof(length),&actual)!=kResultOk||actual!=sizeof(length)||length<0||length>4096)return false;
- std::string next(static_cast<size_t>(length),'\\0');
+ std::string next(static_cast<size_t>(length),'\0');
  if(length && (stream->read(&next[0],length,&actual)!=kResultOk||actual!=length))return false;
- if(next.find('\\0')!=std::string::npos)return false;
+ if(next.find('\0')!=std::string::npos)return false;
  path=std::move(next);return true;
 }
 }
@@ -290,6 +302,7 @@ tresult PLUGIN_API VMProcessor::setState(IBStream* stream){
  {
   std::lock_guard<std::mutex> lock(irJobMutex);
   micStatePath=mic;reverbStatePath=rev;
+  micIRStatus.store(mic.empty()?0:1);reverbIRStatus.store(rev.empty()?0:1);
   hasMicJob=hasReverbJob=true;
   micJobPath=mic;reverbJobPath=rev;
   ++micRevision;++reverbRevision;

@@ -8,7 +8,8 @@ enum VMParameter : Vst::ParamID {
  kInput=100,kOutput=101,kDeNasal=102,kChest=103,kWarmth=104,
  kGrit=105,kPresence=106,kCompression=107,kLowCut=108,kBypass=109,
  kMicMix=110,kMicLevel=111,kReverbMix=112,kReverbLevel=113,kMicPosition=114,kMicPredelay=115,kReverbPredelay=116,
- kInputPeakL=200,kInputPeakR=201,kOutputPeakL=202,kOutputPeakR=203
+ kInputPeakL=200,kInputPeakR=201,kOutputPeakL=202,kOutputPeakR=203,
+ kMicIRStatus=204,kReverbIRStatus=205
 };
 constexpr int kParameterCount=17;
 }

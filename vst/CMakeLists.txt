@@ -7,5 +7,6 @@ add_subdirectory("${VST3_SDK_ROOT}" "${CMAKE_BINARY_DIR}/vst3sdk")
 smtg_enable_vst3_sdk()
 smtg_add_vst3plugin(VoiceMorph
  processor.cpp controller.cpp entry.cpp processor.h controller.h ids.h)
-target_link_libraries(VoiceMorph PRIVATE sdk voicemorph_dsp)
+target_link_libraries(VoiceMorph PRIVATE sdk voicemorph_dsp vstgui_support)
+smtg_target_add_plugin_resources(VoiceMorph RESOURCES resource/voicemorph.uidesc)
 smtg_target_configure_version_file(VoiceMorph)
