@@ -5,6 +5,7 @@
 #include "base/source/fstreamer.h"
 #include <cmath>
 #include <cstdio>
+#include <algorithm>
 namespace Steinberg {
 tresult PLUGIN_API VMController::initialize(FUnknown* context){
  auto r=EditControllerEx1::initialize(context);if(r!=kResultOk)return r;
@@ -48,6 +49,25 @@ tresult PLUGIN_API VMController::setComponentState(IBStream* stream){
 
 namespace Steinberg {
 tresult PLUGIN_API VMController::getParamStringByValue(Vst::ParamID id,Vst::ParamValue value,Vst::String128 string) {
+ if(!string)return kResultFalse;
+ if(id==kInput||id==kOutput||id==kMicMix||id==kReverbMix||
+    id==kMicLevel||id==kReverbLevel||id==kMicPredelay||
+    id==kReverbPredelay||id==kMicPosition){
+  if(!std::isfinite(value))value=0.;
+  value=std::max(0.,std::min(1.,value));
+  char display[40];
+  if(id==kInput||id==kOutput)
+   std::snprintf(display,sizeof(display),"%.1f dB",(value-.5)*24.);
+  else if(id==kMicMix||id==kReverbMix)
+   std::snprintf(display,sizeof(display),"%.0f %%",value*100.);
+  else if(id==kMicLevel||id==kReverbLevel)
+   std::snprintf(display,sizeof(display),"%.0f %%",value*400.);
+  else if(id==kMicPredelay||id==kReverbPredelay)
+   std::snprintf(display,sizeof(display),"%.0f ms",value*2000.);
+  else std::snprintf(display,sizeof(display),"%s",value<.5?"PRE":"POST");
+  UString(string,128).fromAscii(display);
+  return kResultTrue;
+ }
  if(id>=kInputPeakL&&id<=kOutputPeakR) {
   if(!std::isfinite(value))value=0.;
   char display[32];
