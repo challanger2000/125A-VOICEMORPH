@@ -34,5 +34,21 @@ int main(){
   }
   assert(sum>0 && sum<rate);
  }
+ // LOW CUT: 0 is transparent, 100% attenuates 40 Hz while preserving 1 kHz.
+ for(float cut:{0.f,1.f}){
+  vm::Parameters p;p.lowCut=cut;dsp.prepare(48000);dsp.setParameters(p);
+  double low=0,high=0;
+  for(int n=0;n<48000;++n){
+   auto y=dsp.processSample(.2f*std::sin(2*vm::pi*40*n/48000));
+   if(n>24000)low+=y*y;
+  }
+  dsp.prepare(48000);dsp.setParameters(p);
+  for(int n=0;n<48000;++n){
+   auto y=dsp.processSample(.2f*std::sin(2*vm::pi*1000*n/48000));
+   if(n>24000)high+=y*y;
+  }
+  if(cut==0.f){assert(std::fabs(low-high)<2.0);}
+  else assert(low<high*.15);
+ }
  std::cout<<"Voice DSP foundation PASS\n";
 }

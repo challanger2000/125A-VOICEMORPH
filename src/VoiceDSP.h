@@ -50,7 +50,7 @@ class VoiceDSP {
   air.peak(rate,3400,.9,3*clamp(p.presence,0,1));
   detectorAttack=std::exp(-1/(.025*rate));
   detectorRelease=std::exp(-1/(.140*rate));
-  attack=std::exp(-1/(.010*rate));release=std::exp(-1/(.100*rate));hpCoeff=std::exp(-2*pi*65/rate);
+  attack=std::exp(-1/(.010*rate));release=std::exp(-1/(.100*rate));hpCoeff=std::exp(-2*pi*(35.+145.*clamp(p.lowCut,0,1))/rate);
  }
 public:
  VoiceDSP(){update();}
@@ -67,7 +67,8 @@ public:
   if(!std::isfinite(s))s=0;
   const float input=s*inGain;peak(meter.inputPeak,std::fabs(input));
   const float hp=input-hpX+hpCoeff*hpY;hpX=input;hpY=hp;
-  float x=(1-clamp(p.lowCut,0,1))*input+clamp(p.lowCut,0,1)*hp;
+  // At zero, this filter is fully bypassed. Otherwise LOW CUT sets cutoff 35..180 Hz.
+  float x=p.lowCut<=0.f?input:hp;
   // Detector compares nasal-band emphasis to broadband energy; smoothed and
   // recalculated every 128 samples to avoid audio-rate coefficient modulation.
   const float broadband=std::fabs(x);
