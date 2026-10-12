@@ -18,6 +18,10 @@ void VMProcessor::apply() noexcept {
  p.denasal=params[2];p.chest=params[3];p.warmth=params[4];p.grit=params[5];
  p.presence=params[6];p.compression=params[7];p.lowCut=params[8];
  dsp[0].setParameters(p);dsp[1].setParameters(p);
+ microphoneIR.setMix(params[kMicMix-kInput]);
+ microphoneIR.setWetLevel(params[kMicLevel-kInput]*4.f);
+ reverbIR.setMix(params[kReverbMix-kInput]);
+ reverbIR.setWetLevel(params[kReverbLevel-kInput]*4.f);
 }
 tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
  auto r=AudioEffect::setupProcessing(setup);
@@ -35,7 +39,7 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
    int32 offset=0;Vst::ParamValue value=0;
    if(q->getPoint(q->getPointCount()-1,offset,value)!=kResultTrue)continue;
    auto id=q->getParameterId();
-   if(id>=kInput&&id<=kBypass)params[id-kInput]=static_cast<float>(std::max(0.,std::min(1.,value)));
+   if(id>=kInput&&id<=kReverbLevel)params[id-kInput]=static_cast<float>(std::max(0.,std::min(1.,value)));
   }
   apply();
  }
@@ -106,16 +110,17 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
 tresult PLUGIN_API VMProcessor::getState(IBStream* stream){
  if(!stream)return kResultFalse;
  IBStreamer io(stream,kLittleEndian);
- if(!io.writeInt32(1))return kResultFalse;
+ if(!io.writeInt32(2))return kResultFalse;
  for(float p:params)if(!io.writeFloat(p))return kResultFalse;
  return kResultOk;
 }
 tresult PLUGIN_API VMProcessor::setState(IBStream* stream){
  if(!stream)return kResultFalse;
  IBStreamer io(stream,kLittleEndian);int32 version=0;
- if(!io.readInt32(version)||version!=1)return kResultFalse;
- float next[kParameterCount]={};
- for(float& p:next)if(!io.readFloat(p)||!std::isfinite(p))return kResultFalse;
+ if(!io.readInt32(version)||(version!=1&&version!=2))return kResultFalse;
+ float next[kParameterCount]={.5f,.5f,0,0,0,0,0,0,0,0,1,.25f,.3f,.25f};
+ const int count=version==1?10:kParameterCount;
+ for(int i=0;i<count;++i)if(!io.readFloat(next[i])||!std::isfinite(next[i]))return kResultFalse;
  for(int i=0;i<kParameterCount;++i)params[i]=vm::clamp(next[i],0,1);
  apply();return kResultOk;
 }
