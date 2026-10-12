@@ -180,3 +180,19 @@ and converted with explicit bounds checks before physical-unit parsing.
 Unsupported UTF-16 symbols or unterminated/oversized input are rejected.
 The previous `UString(string,-1)` expression was not a valid buffer-size
 contract for the Steinberg SDK and is not used.
+
+## Sample-offset automation and locale-safe value editing
+
+The VST3 processor now consumes every point in each writable parameter queue
+at its host-provided audio sample offset instead of using the last point at
+the beginning of a block. A fixed-capacity stack array of cursor instances
+handles up to the 19 writable parameter queues without copying unbounded
+point arrays or allocating in audio processing. Duplicate and malformed
+points, end-of-block offsets, and zero-sample processing have dedicated
+regression tests. This honours the timing of automation events; continuous
+interpolation between events is a separate sonic/quality assessment.
+
+UI physical text parsing now uses locale-independent `std::from_chars`
+with explicit plus-sign handling. Both decimal commas and periods parse
+correctly regardless of the Windows process locale, including when a German
+numeric locale is active. Unit and range validation remain unchanged.

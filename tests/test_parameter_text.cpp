@@ -2,6 +2,7 @@
 #include <array>
 #include <cassert>
 #include <cmath>
+#include <clocale>
 #include <iostream>
 #include <string>
 int main(){
@@ -26,6 +27,22 @@ int main(){
  valid(118,"0 st",4./7.);
  valid(118,"-8 st",0.);
  valid(100,"-6,0 dB",.25);
+ valid(100,"-6.0 dB",.25);
+ valid(117,"+2,5 st",(2.5+12.)/18.);
+ valid(117,"+2.5 st",(2.5+12.)/18.);
+ // The same inputs must parse even when the numeric C locale is German,
+ // since Steinberg hosts can run under any Windows regional settings.
+ const char* locale=std::setlocale(LC_NUMERIC,nullptr);
+ const std::string originalLocale=locale?locale:"C";
+ const char* german=std::setlocale(LC_NUMERIC,"German_Germany.1252");
+ if(!german)german=std::setlocale(LC_NUMERIC,"de_DE.UTF-8");
+ if(german){
+  valid(117,"+2.5 st",(2.5+12.)/18.);
+  valid(117,"+2,5 st",(2.5+12.)/18.);
+  valid(100,"-6.0 dB",.25);
+  valid(100,"-6,0 dB",.25);
+  std::setlocale(LC_NUMERIC,originalLocale.c_str());
+ }
  valid(108,"OFF",0.);
  valid(108,"180 Hz",1.);
  valid(110,"35 %",.35);

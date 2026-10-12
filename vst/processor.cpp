@@ -1,6 +1,7 @@
 #include "processor.h"
 #include "ids.h"
 #include "IRLoadInfo.h"
+#include "ParameterPointCursor.h"
 #include "base/source/fstreamer.h"
 #include "pluginterfaces/base/ibstream.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
@@ -8,6 +9,8 @@
 #include <string>
 #include <cstring>
 #include <algorithm>
+#include <array>
+#include <limits>
 #include <cmath>
 namespace Steinberg {
 VMProcessor::VMProcessor(){
@@ -179,33 +182,83 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
  // at the audio block boundary, never mutate the live DSP from setState().
  const bool restored=stateMailbox.consumeAudio(params);
  if(restored)apply();
+ // VST3 automation points are sample-offset events. Previously only the
+ // last point was applied to the *first* sample of a buffer; that breaks
+ // precise pitch/formant automation, bypass and parameter ramps.
+ struct ActiveParam {
+  Vst::ParamID id=kInput;
+  Vst::IParamValueQueue* queue=nullptr;
+  vm::ParameterPointCursor cursor;
+ };
+ std::array<ActiveParam,kParameterCount> active{};
+ int activeCount=0;
  if(data.inputParameterChanges){
   auto* changes=data.inputParameterChanges;
   for(int32 i=0;i<changes->getParameterCount();++i){
-   auto* q=changes->getParameterData(i);if(!q||q->getPointCount()<1)continue;
-   int32 offset=0;Vst::ParamValue value=0;
-   if(q->getPoint(q->getPointCount()-1,offset,value)!=kResultTrue)continue;
-   auto id=q->getParameterId();
-   if(id>=kInput&&id<=kFormant && std::isfinite(value)){
-    const float normalized=static_cast<float>(std::clamp(value,0.,1.));
-    params[id-kInput]=normalized;
-    stateMailbox.storeAutomationAudio(id-kInput,normalized);
+   auto* queue=changes->getParameterData(i);
+   if(!queue||queue->getPointCount()<=0)continue;
+   const auto id=queue->getParameterId();
+   if(id<kInput||id>kFormant||activeCount>=kParameterCount)continue;
+   auto& entry=active[activeCount];
+   entry.id=id;entry.queue=queue;
+   entry.cursor.reset(queue->getPointCount(),
+    [queue](int32 index,int32& offset,double& value) noexcept {
+     return queue->getPoint(index,offset,value)==kResultTrue;
+    });
+   if(entry.cursor.pending())++activeCount;
+  }
+ }
+ vm::StereoIRStage* liveMic=nullptr;
+ vm::StereoIRStage* liveRev=nullptr;
+ auto applyAutomationAt=[&](int32 sampleOffset) noexcept {
+  bool changed=false;
+  for(int i=0;i<activeCount;++i){
+   auto& entry=active[i];
+   auto* queue=entry.queue;
+   const auto id=entry.id;
+   changed|=entry.cursor.consumeThrough(sampleOffset,
+    [queue](int32 index,int32& offset,double& value) noexcept {
+     return queue->getPoint(index,offset,value)==kResultTrue;
+    },
+    [&](double value) noexcept {
+     const float normalized=static_cast<float>(std::clamp(value,0.,1.));
+     params[id-kInput]=normalized;
+     stateMailbox.storeAutomationAudio(id-kInput,normalized);
+    });
+  }
+  if(changed){
+   apply();
+   // The placeholder IR stages are updated by apply(), but an externally
+   // loaded IR lives in the handoff stage and needs the same timed controls.
+   if(liveMic){
+    liveMic->setMix(params[kMicMix-kInput]);
+    liveMic->setWetLevel(params[kMicLevel-kInput]*4.f);
+    liveMic->setPredelayNormalized(params[kMicPredelay-kInput]);
+   }
+   if(liveRev){
+    liveRev->setMix(params[kReverbMix-kInput]);
+    liveRev->setWetLevel(params[kReverbLevel-kInput]*4.f);
+    liveRev->setPredelayNormalized(params[kReverbPredelay-kInput]);
    }
   }
-  apply();
- }
+ };
  // Adopt prebuilt IR engines only at audio-block boundaries; no allocations here.
  auto* micLoaded=micHandoff.acquireAudio();
  auto* reverbLoaded=reverbHandoff.acquireAudio();
  vm::StereoIRStage* mic=micLoaded?micLoaded:&microphoneIR;
  vm::StereoIRStage* rev=reverbLoaded?reverbLoaded:&reverbIR;
+ liveMic=mic;liveRev=rev;
  mic->setMix(params[kMicMix-kInput]);
  mic->setWetLevel(params[kMicLevel-kInput]*4.f);
  mic->setPredelayNormalized(params[kMicPredelay-kInput]);
  rev->setMix(params[kReverbMix-kInput]);
  rev->setWetLevel(params[kReverbLevel-kInput]*4.f);
  rev->setPredelayNormalized(params[kReverbPredelay-kInput]);
- if(data.numSamples<=0)return kResultOk;
+ if(data.numSamples<=0){
+  // Steinberg allows zero-length calls carrying parameter updates.
+  applyAutomationAt(std::numeric_limits<int32>::max());
+  return kResultOk;
+ }
  if(data.numInputs<1||data.numOutputs<1||!data.inputs||!data.outputs)return kResultFalse;
  auto& input=data.inputs[0];auto& output=data.outputs[0];
  if(data.symbolicSampleSize!=Vst::kSample32)return kResultFalse;
@@ -229,9 +282,10 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
  }
  // Constant 256-sample signal path with two 128-sample inserts. Disabled
  // IRs are latency-matched; bypass also remains delay-compensated.
- const bool pre=params[kMicPosition-kInput]<.5f;
- const bool bypass=params[kBypass-kInput]>=.5f;
  for(int32 n=0;n<data.numSamples;++n){
+  applyAutomationAt(n);
+  const bool pre=params[kMicPosition-kInput]<.5f;
+  const bool bypass=params[kBypass-kInput]>=.5f;
   const float inL=input.channelBuffers32[0][n];
   const float inR=channels>1?input.channelBuffers32[1][n]:0.f;
   float outL=0.f,outR=0.f;
@@ -240,6 +294,9 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
   output.channelBuffers32[0][n]=outL;
   if(channels>1)output.channelBuffers32[1][n]=outR;
  }
+ // An event at the exact end of a block becomes the initial value of the
+ // *next* block; do not apply it to already rendered samples.
+ applyAutomationAt(data.numSamples);
  for(int32 ch=channels;ch<output.numChannels;++ch){
   if(output.channelBuffers32[ch])std::fill_n(output.channelBuffers32[ch],data.numSamples,0.f);
  }

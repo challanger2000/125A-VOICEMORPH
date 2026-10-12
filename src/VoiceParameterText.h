@@ -2,10 +2,10 @@
 // UI-thread-only physical units <-> normalized values for VST3 text editors.
 // UI format and parsing must be symmetric. No DSP or VST3 SDK dependencies.
 #include <algorithm>
-#include <cerrno>
+#include <charconv>
 #include <cmath>
 #include <cstdio>
-#include <cstdlib>
+#include <system_error>
 #include <cctype>
 #include <string>
 namespace vm {
@@ -56,12 +56,16 @@ inline bool parseVoiceControl(int id,const std::string& input,double& normalized
   if(s.find('.')!=std::string::npos)return false;
   std::replace(s.begin(),s.end(),',','.');
  }
- errno=0;
- const char* first=s.c_str();
- char* end=nullptr;
- const double physical=std::strtod(first,&end);
- if(end==first||errno==ERANGE||!std::isfinite(physical))return false;
- const std::string unit=trimLowerAscii(std::string(end));
+ // from_chars is locale-independent; strtod() would use the host's C
+ // numeric locale, breaking both 3.5 and 3,5 when the OS uses German.
+ // from_chars does not consume a leading plus sign, which our UI emits.
+ const char* first=s.data();
+ const char* last=first+s.size();
+ if(first!=last&&*first=='+')++first;
+ double physical=0.;
+ const auto parsed=std::from_chars(first,last,physical,std::chars_format::general);
+ if(parsed.ec!=std::errc{}||parsed.ptr==first||!std::isfinite(physical))return false;
+ const std::string unit=trimLowerAscii(std::string(parsed.ptr,last));
  auto accepts=[&](const char* expected){return unit.empty()||unit==expected;};
  double n=0.;
  if(id==100||id==101){
