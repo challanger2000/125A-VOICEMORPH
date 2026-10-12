@@ -6,12 +6,17 @@
 #include "IRFileBuilder.h"
 #include <string>
 #include <memory>
+#include <atomic>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 #include "ids.h"
 namespace Steinberg {
 class VMProcessor final:public Vst::AudioEffect {
 public:
  static FUnknown* createInstance(void*) {return static_cast<Vst::IAudioProcessor*>(new VMProcessor);}
  VMProcessor();
+ ~VMProcessor() override;
  // Non-realtime producer API; a controller/message bridge must invoke these off audio thread.
  bool publishMicIR(std::unique_ptr<vm::StereoIRStage>& stage) noexcept {return micHandoff.publish(stage);}
  bool publishReverbIR(std::unique_ptr<vm::StereoIRStage>& stage) noexcept {return reverbHandoff.publish(stage);}
@@ -33,7 +38,16 @@ private:
  vm::StereoIRStage microphoneIR;
  vm::StereoIRStage reverbIR;
  vm::IRStageHandoff micHandoff,reverbHandoff;
- double currentSampleRate=0.;
+ std::atomic<double> currentSampleRate{0.};
+ std::thread irWorker;
+ std::mutex irJobMutex;
+ std::condition_variable irJobWake;
+ bool stopIRWorker=false;
+ bool hasIRJob=false;
+ bool irJobIsMic=false;
+ std::string irJobPath;
+ void irWorkerLoop();
+ void queueIRJob(std::string path,bool mic);
  void apply() noexcept;
 };
 }

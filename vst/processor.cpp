@@ -8,7 +8,46 @@
 #include <algorithm>
 #include <cmath>
 namespace Steinberg {
-VMProcessor::VMProcessor(){setControllerClass(kVMControllerUID);}
+VMProcessor::VMProcessor(){
+ setControllerClass(kVMControllerUID);
+ irWorker=std::thread([this]{irWorkerLoop();});
+}
+VMProcessor::~VMProcessor(){
+ {
+  std::lock_guard<std::mutex> lock(irJobMutex);
+  stopIRWorker=true;
+  hasIRJob=false;
+ }
+ irJobWake.notify_one();
+ if(irWorker.joinable())irWorker.join();
+ reclaimIRsControl();
+}
+void VMProcessor::queueIRJob(std::string path,bool mic){
+ {
+  std::lock_guard<std::mutex> lock(irJobMutex);
+  irJobPath=std::move(path);
+  irJobIsMic=mic;
+  hasIRJob=true;
+ }
+ irJobWake.notify_one();
+}
+void VMProcessor::irWorkerLoop(){
+ for(;;){
+  std::string path;
+  bool mic=false;
+  {
+   std::unique_lock<std::mutex> lock(irJobMutex);
+   irJobWake.wait(lock,[this]{return stopIRWorker||hasIRJob;});
+   if(stopIRWorker)return;
+   path=std::move(irJobPath);
+   mic=irJobIsMic;
+   hasIRJob=false;
+  }
+  std::string error;
+  if(mic)loadMicIRFromFileControl(path,error);
+  else loadReverbIRFromFileControl(path,error);
+ }
+}
 tresult PLUGIN_API VMProcessor::notify(Vst::IMessage* message){
  if(!message||!message->getMessageID()||std::strcmp(message->getMessageID(),"125A.LoadIR")!=0)
   return AudioEffect::notify(message);
@@ -22,10 +61,8 @@ tresult PLUGIN_API VMProcessor::notify(Vst::IMessage* message){
  const auto* chars=static_cast<const char*>(raw);
  if(std::memchr(chars,0,length))return kInvalidArgument;
  const std::string path(chars,chars+length);
- std::string error;
- const bool ok=microphone?loadMicIRFromFileControl(path,error):
-                          loadReverbIRFromFileControl(path,error);
- return ok?kResultOk:kResultFalse;
+ queueIRJob(path,microphone!=0);
+ return kResultOk;
 }
 tresult PLUGIN_API VMProcessor::initialize(FUnknown* context){
  auto r=AudioEffect::initialize(context);if(r!=kResultOk)return r;
@@ -34,9 +71,10 @@ tresult PLUGIN_API VMProcessor::initialize(FUnknown* context){
  apply();return kResultOk;
 }
 bool VMProcessor::loadMicIRFromFileControl(const std::string& path,std::string& error){
- if(currentSampleRate<8000.){error="Audio processing is not configured";return false;}
+ const double sampleRate=currentSampleRate.load(std::memory_order_acquire);
+ if(sampleRate<8000.){error="Audio processing is not configured";return false;}
  micHandoff.reclaimControl();
- auto prepared=vm::IRFileBuilder::load(path,currentSampleRate,0,error);
+ auto prepared=vm::IRFileBuilder::load(path,sampleRate,0,error);
  if(!prepared)return false;
  if(!publishMicIR(prepared)){error="Previous microphone IR still pending";return false;}
  error.clear();return true;
@@ -64,7 +102,7 @@ void VMProcessor::apply() noexcept {
 }
 tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
  auto r=AudioEffect::setupProcessing(setup);
- if(r==kResultOk){currentSampleRate=setup.sampleRate;for(auto& d:dsp)d.prepare(setup.sampleRate);microphoneIR.reset();reverbIR.reset();apply();}
+ if(r==kResultOk){currentSampleRate.store(setup.sampleRate,std::memory_order_release);for(auto& d:dsp)d.prepare(setup.sampleRate);microphoneIR.reset();reverbIR.reset();apply();}
  return r;
 }
 tresult PLUGIN_API VMProcessor::canProcessSampleSize(int32 n){
