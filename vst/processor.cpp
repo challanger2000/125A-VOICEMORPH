@@ -1,6 +1,7 @@
 #include "processor.h"
 #include "ids.h"
 #include "base/source/fstreamer.h"
+#include "pluginterfaces/base/ibstream.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
 #include "pluginterfaces/vst/ivstmessage.h"
 #include <string>
