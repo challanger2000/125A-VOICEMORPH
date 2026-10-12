@@ -26,7 +26,11 @@ public:
     taps[2][n]=ir.interleaved[n*4+3];
    }
   }
-  // Prepare on non-audio thread. An invalid file has already been checked above.
+  // Validate completely before modifying any DSP state.
+  if(ir.frames()>48000u*30u)return false;
+  for(const auto& channel:taps)
+   for(float sample:channel)if(!std::isfinite(sample))return false;
+  // Only validated IRs reach the prepared convolution engines.
   for(int i=0;i<4;++i) if(!path_[i].prepare(taps[i]))return false;
   loaded_=true;return true;
  }

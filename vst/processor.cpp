@@ -43,6 +43,14 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
  auto& input=data.inputs[0];auto& output=data.outputs[0];
  if(data.symbolicSampleSize!=Vst::kSample32)return kResultFalse;
  const int32 channels=std::min({input.numChannels,output.numChannels,2});
+ // Snapshot dry signal before modifying any buffers (VST3 in-place processing).
+ float dryPeak[2]={0.f,0.f};
+ for(int32 channel=0;channel<channels;++channel){
+  auto* samples=input.channelBuffers32[channel];
+  if(!samples)continue;
+  for(int32 i=0;i<data.numSamples;++i)
+   if(std::isfinite(samples[i]))dryPeak[channel]=std::max(dryPeak[channel],std::fabs(samples[i]));
+ }
  // Stereo IR stages run on post-voice samples. Unloaded stages are identity.
  // Two passes are deliberately conditional: there is no added latency until an IR is loaded.
  if(channels==2 && params[kBypass-kInput]<.5f && microphoneIR.ready() && reverbIR.ready()) {
@@ -77,25 +85,18 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
   if(output.channelBuffers32[ch])std::fill_n(output.channelBuffers32[ch],data.numSamples,0.f);
  }
  output.silenceFlags=0;
- // Meter samples are read from actual output buffers, including bypass and IR paths.
- // Input peaks in bypass are the dry bus signal; otherwise input gain is applied.
- float meterInput[2]={0.f,0.f},meterOutput[2]={0.f,0.f};
- for(int32 ch=0;ch<channels;++ch) {
-  const auto* source=input.channelBuffers32[ch];
-  const auto* rendered=output.channelBuffers32[ch];
-  if(!source||!rendered)continue;
-  const float inputGain=params[kBypass-kInput]>=.5f?1.f:
-      vm::gain((params[kInput-kInput]-.5f)*24.f);
-  for(int32 n=0;n<data.numSamples;++n){
-   const float src=source[n],dst=rendered[n];
-   if(std::isfinite(src))meterInput[ch]=std::max(meterInput[ch],std::fabs(src*inputGain));
-   if(std::isfinite(dst))meterOutput[ch]=std::max(meterOutput[ch],std::fabs(dst));
-  }
+ // Measure final output, including bypass and optional IR processing.
+ float meterOutput[2]={0.f,0.f};
+ for(int32 channel=0;channel<channels;++channel) {
+  auto* rendered=output.channelBuffers32[channel];
+  if(!rendered)continue;
+  for(int32 i=0;i<data.numSamples;++i)
+   if(std::isfinite(rendered[i]))meterOutput[channel]=std::max(meterOutput[channel],std::fabs(rendered[i]));
  }
  if(data.outputParameterChanges && data.numSamples>0) {
   const Vst::ParamID meterIds[4]={kInputPeakL,kInputPeakR,kOutputPeakL,kOutputPeakR};
   for(int32 channel=0;channel<2;++channel){
-   const float values[2]={params[kBypass-kInput]>=.5f?meterInput[channel]:
+   const float values[2]={params[kBypass-kInput]>=.5f?dryPeak[channel]:
     dsp[channel].meters().inputPeak.load(std::memory_order_relaxed),meterOutput[channel]};
    for(int kind=0;kind<2;++kind){
     int32 index=0;
