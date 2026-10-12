@@ -27,25 +27,33 @@ class VoiceDSP {
  double rate=48000;
  Parameters p{};
  Biquad nose,body,warm,air;
+ Biquad nasalDetector;
  float inGain=1,outGain=1,envelope=0,attack=0,release=0,hpX=0,hpY=0,hpCoeff=0;
+ float detectorEnvelope=0,fullEnvelope=0,denasalReduction=0,detectorAttack=0,detectorRelease=0;
  Meters meter{};
+ unsigned detectorCounter=0;
  static void peak(std::atomic<float>& a,float val) noexcept {
   float v=a.load(std::memory_order_relaxed);
   while(v<val&&!a.compare_exchange_weak(v,val,std::memory_order_relaxed)){}
  }
  void update() noexcept {
   inGain=gain(clamp(p.inputDb,-12,12));outGain=gain(clamp(p.outputDb,-12,12));
-  nose.peak(rate,920,2.1,-7*clamp(p.denasal,0,1));
+  // Keep the static corrective notch disabled; adaptive reduction drives this biquad.
+  nose.peak(rate,920,2.1,-7*clamp(p.denasal,0,1)*denasalReduction);
+  nasalDetector.peak(rate,920,2.1,12);
   body.peak(rate,165,.72,4*clamp(p.chest,0,1));
   warm.peak(rate,390,.85,2.5*clamp(p.warmth,0,1));
   air.peak(rate,3400,.9,3*clamp(p.presence,0,1));
+  detectorAttack=std::exp(-1/(.025*rate));
+  detectorRelease=std::exp(-1/(.140*rate));
   attack=std::exp(-1/(.010*rate));release=std::exp(-1/(.100*rate));hpCoeff=std::exp(-2*pi*65/rate);
  }
 public:
  VoiceDSP(){update();}
  void prepare(double sr) noexcept {
   rate=(sr>=8000&&sr<=384000)?sr:48000;
-  nose.reset();body.reset();warm.reset();air.reset();envelope=hpX=hpY=0;update();meter.reset();
+  nose.reset();nasalDetector.reset();body.reset();warm.reset();air.reset();envelope=hpX=hpY=0;
+  detectorEnvelope=fullEnvelope=denasalReduction=0;detectorCounter=0;update();meter.reset();
  }
  void setParameters(const Parameters& next) noexcept {p=next;update();}
  const Meters& meters() const noexcept {return meter;}
@@ -55,6 +63,17 @@ public:
   const float input=s*inGain;peak(meter.inputPeak,std::fabs(input));
   const float hp=input-hpX+hpCoeff*hpY;hpX=input;hpY=hp;
   float x=(1-clamp(p.lowCut,0,1))*input+clamp(p.lowCut,0,1)*hp;
+  // Detector compares nasal-band emphasis to broadband energy; smoothed and
+  // recalculated every 128 samples to avoid audio-rate coefficient modulation.
+  const float nasalEnergy=std::fabs(nasalDetector.run(x)-x);
+  const float broadband=std::fabs(x);
+  detectorEnvelope=detectorAttack*detectorEnvelope+(1-detectorAttack)*nasalEnergy;
+  fullEnvelope=detectorRelease*fullEnvelope+(1-detectorRelease)*broadband;
+  const float ratio=detectorEnvelope/(fullEnvelope+1e-5f);
+  const float activity=clamp((ratio-.18f)*2.f,0.f,1.f);
+  denasalReduction+=(activity-denasalReduction)*.001f;
+  if((++detectorCounter&127u)==0u)
+    nose.peak(rate,920,2.1,-7*clamp(p.denasal,0,1)*denasalReduction);
   x=air.run(warm.run(body.run(nose.run(x))));
   const float drive=2*clamp(p.grit,0,1);
   if(drive>0){float d=1+drive;x=std::tanh(x*d)/std::tanh(d);}

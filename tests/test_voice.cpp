@@ -15,5 +15,14 @@ int main(){
  dsp.prepare(48000);dsp.setParameters({});
  for(int i=0;i<2048;++i){float x=.3f*std::sin(2*vm::pi*i*200/48000);assert(std::fabs(dsp.processSample(x)-x)<.0001f);}
  dsp.prepare(48000);assert(dsp.processSample(NAN)==0);
+ // Regression: dynamic detector remains finite across silence, impulses and hot signals.
+ vm::Parameters nasal;nasal.denasal=1.f;dsp.prepare(48000);dsp.setParameters(nasal);
+ for(int n=0;n<96000;++n){
+  float x=(n%3000==0)?2.f:.4f*std::sin(2*vm::pi*920*n/48000.);
+  float y=dsp.processSample(x);
+  assert(std::isfinite(y)&&std::fabs(y)<10.f);
+ }
+ nasal.denasal=0;dsp.setParameters(nasal);
+ for(int n=0;n<2048;++n)assert(std::isfinite(dsp.processSample(0.f)));
  std::cout<<"Voice DSP foundation PASS\n";
 }
