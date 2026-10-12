@@ -21,6 +21,13 @@ int main(){
  assert(vm::prepareIRBlobHeader(original,header));
  assert(header.size==wav.size()&&header.checksum!=0);
  assert(vm::validateIRBlob(header,wav));
+ // Missing original path must not disable rate-change IR reconstruction.
+ assert(vm::needsIRRateRebuild("",original,44100.,48000.));
+ assert(vm::needsIRRateRebuild("",original,48000.,44100.));
+ assert(!vm::needsIRRateRebuild("",original,48000.,48000.));
+ assert(!vm::needsIRRateRebuild("",{},44100.,48000.));
+ assert(vm::needsIRRateRebuild("deleted.wav",{},44100.,48000.));
+ assert(!vm::needsIRRateRebuild("deleted.wav",{},44100.,44100.));
  vm::WaveIR decoded;std::string err;
  assert(vm::decodeWave(wav.data(),wav.size(),decoded,err));
  assert(decoded.sampleRate==48000&&decoded.channels==1&&decoded.frames()==1);

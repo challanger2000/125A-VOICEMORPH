@@ -27,3 +27,18 @@ All algorithms and parameter defaults are **provisional until measured**. Pitch 
 **Status (2026-10-12):** Active VST3 development build; automated Windows CI compiles the plugin and runs 47 Steinberg Validator checks plus DSP/functional and allocation/CPU stress probes. The processor contains spectral pitch/formant shifting, voice-tone/dynamics, microphone and reverb IR load/clear, partitioned convolution, gain/peak telemetry and a development VSTGUI with 100/150% zoom. This is **not** the final approved GUI or a release. Host GUI attach/reopen, level-matched real-speech listening, long-term DAW operation, IR state portability and the final 125A release audit are not yet signed off. Check the latest GitHub Actions run for exact passing-test counts. 
 - Normal audio arrangements: Mono→Mono, Mono→Stereo, Stereo→Stereo. Host buffers: 32-bit and 64-bit floating point (internal DSP remains float).
 - Project state v7 embeds the **original WAV bytes** for both IR slots, while retaining source paths as optional provenance/fallback for v5-v6 projects. Older state v1-v6 remains readable. The embedded recall and corruption guards require successful CI and Studio One restore tests before claiming portable DAW release behavior.
+
+## Personal use / target rates
+
+VOICEMORPH is a **private Windows x64 Studio One project**, not a Gumroad or
+commercial release. **44,100 Hz** is the primary session rate and **48,000 Hz**
+is the secondary rate for video compatibility. Other host rates retain their
+existing compatibility logic, but development and CPU diagnostics prioritize
+44.1/48 kHz. No demo timer, license check, store packaging or macOS build is
+required for the personal use case.
+
+The `studio_one_44100_48000_rate_switch` regression checks exact compensated
+neutral dual-IR impulse timing at both rates with host blocks from 16 to
+512 frames, a full-octave pitch change with formant shift, and original IR
+resampling in both directions. It does not replace an actual Studio One
+session reopen/PDC/GUI test.

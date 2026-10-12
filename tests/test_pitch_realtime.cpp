@@ -159,7 +159,9 @@ int main(){
  // Dense true-stereo IRs are measured at multiple *host* block sizes:
  // the uniform 128-sample FFT kernel has burst costs that 128-sample
  // averages can hide. Do not use these GitHub runner values as DAW proof.
- for(const int rate:{48000,96000}){
+ // This is a private Studio One plugin. Measure dense loaded-IR stress
+ // at the two actual project rates instead of prioritizing 96 kHz.
+ for(const int rate:{44100,48000}){
   for(const int block:{16,32,64,128,256,512}){
   const Metrics m=profile(rate,true,block);
   std::cout<<"pitch-rt rate="<<rate

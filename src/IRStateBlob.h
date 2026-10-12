@@ -7,6 +7,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <string>
 #include <vector>
 namespace vm {
 using IRSourceBytes=std::vector<std::uint8_t>;
@@ -37,6 +38,12 @@ inline bool prepareIRBlobHeader(const SharedIRSource& bytes,IRBlobHeader& h) noe
  h.size=static_cast<std::uint32_t>(bytes->size());
  h.checksum=irCRC32(bytes->data(),bytes->size());
  return true;
+}
+// An embedded IR remains valid after its original filename is removed.
+// A rate change must therefore requeue work even when the source path is empty.
+inline bool needsIRRateRebuild(const std::string& path,const SharedIRSource& embedded,
+                               double preparedRate,double currentRate) noexcept {
+ return (!path.empty()||static_cast<bool>(embedded))&&preparedRate!=currentRate;
 }
 inline bool validateIRBlob(const IRBlobHeader& h,const IRSourceBytes& bytes) noexcept {
  if(h.size>kMaxEmbeddedIRBytes||h.size!=bytes.size())return false;

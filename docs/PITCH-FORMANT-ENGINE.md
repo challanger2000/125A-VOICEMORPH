@@ -235,3 +235,26 @@ The state saver snapshots shared references to both IR sources while holding
 the existing control mutex only briefly, then writes outside that lock.
 IR swaps still require a real-host listening/click test; checksum validation
 does not establish audible smoothness.
+
+## Personal 44.1/48-kHz integration focus (October 2026)
+
+The intended host is Windows x64 Studio One. Primary session rate is
+44,100 Hz, with 48,000 Hz supported for video workflows. The standalone
+`studio_one_44100_48000_rate_switch` test recreates the pitch engine,
+VoiceDSP, 128+128-sample IR stages and reported host delay separately at
+both rates. It probes neutral impulses across common DAW block sizes,
+active octave-down pitch and formant processing, and IR source resampling
+in both rate directions. A return to 44.1 kHz is tested again to reveal
+stale engine state. Dense two-IR benchmark cases are measured at **44.1
+and 48 kHz**; 96-kHz compatibility is retained without further optimization.
+
+During an asynchronous rate change, the IR worker now retries preparation
+if either a source filename **or embedded v7 source bytes** exist. An
+embedded-only IR may have no valid file path, so testing for a nonempty path
+alone would incorrectly leave it prepared for the previous project rate.
+The captured original source bytes are retained for the retry; the audio
+callback remains free of file I/O, decoding, allocations and control locks.
+The source-independent requeue predicate has deterministic regression cases.
+
+These tests provide engineering coverage, not proof of actual Studio One
+project PDC, editor lifetime, audio quality or session persistence.

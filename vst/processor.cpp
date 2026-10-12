@@ -90,10 +90,14 @@ void VMProcessor::irWorkerLoop(){
    std::lock_guard<std::mutex> lock(irJobMutex);
    if(stopIRWorker)return;
    if(revision!=(mic?micRevision:reverbRevision))continue; // stale result
-   if(!path.empty()&&sampleRate!=currentSampleRate.load(std::memory_order_acquire)){
+   if(vm::needsIRRateRebuild(path,storedSource,sampleRate,
+                             currentSampleRate.load(std::memory_order_acquire))){
     // Host has changed sample rate during preparation: retry with current rate.
-    if(mic){micJobPath=path;micJobSource=storedSource;hasMicJob=true;}
-    else{reverbJobPath=path;reverbJobSource=storedSource;hasReverbJob=true;}
+    // Retain the original source captured during a file load. For an
+    // embedded v7 IR, storedSource itself is authoritative and its path
+    // may legitimately be empty. No audio-thread decoding or allocation.
+    if(mic){micJobPath=path;micJobSource=loadedSource;hasMicJob=true;}
+    else{reverbJobPath=path;reverbJobSource=loadedSource;hasReverbJob=true;}
     irJobWake.notify_one();
     continue;
    }
