@@ -20,6 +20,8 @@
 <control-tag name="P116" tag="116"/>
 <control-tag name="P117" tag="117"/>
 <control-tag name="P118" tag="118"/>
+<control-tag name="Hollywood" tag="1010"/>
+<control-tag name="OriginalVoice" tag="1011"/>
 <control-tag name="LoadMic" tag="1000"/>
 <control-tag name="LoadRev" tag="1001"/>
 <control-tag name="ClearMic" tag="1002"/>
@@ -32,6 +34,11 @@
  <template class="CViewContainer" name="view" origin="0, 0" size="1000, 615" minSize="1000, 615" maxSize="1000, 615" background-color="~ BlackCColor" transparent="false">
   <view class="CTextLabel" origin="28, 15" size="550, 23" title="125A  /  VOICEMORPH" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
   <view class="CTextLabel" origin="28, 48" size="530, 23" title="VOICE TRANSFORMATION  -  DEVELOPMENT" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
+  <view class="CViewContainer" origin="612, 7" size="368, 66" background-color="Panel" transparent="false" sub-controller="VoicePresets">
+   <view class="CTextLabel" origin="12, 4" size="345, 20" title="QUICK VOICE  /  EXISTING CONTROLS" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
+   <view class="CTextButton" origin="12, 29" size="174, 31" title="HOLLYWOOD" control-tag="Hollywood" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/>
+   <view class="CTextButton" origin="196, 29" size="159, 31" title="ORIGINAL" control-tag="OriginalVoice" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/>
+  </view>
   <view class="CViewContainer" origin="20, 77" size="594, 520" background-color="Panel" transparent="false">
   <view class="CTextLabel" origin="18, 14" size="330, 23" title="VOICE / CHARACTER" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
   <view class="CTextLabel" origin="18, 65" size="138, 23" title="INPUT" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>

@@ -42,3 +42,21 @@ neutral dual-IR impulse timing at both rates with host blocks from 16 to
 512 frames, a full-octave pitch change with formant shift, and original IR
 resampling in both directions. It does not replace an actual Studio One
 session reopen/PDC/GUI test.
+
+## Simple personal quick-voice buttons
+
+The development editor now has two one-click voice choices in its header:
+**HOLLYWOOD** for a deliberately mild initial combination of existing
+De-Nasal, Chest, Warmth, Grit, Presence, Compression, Low Cut and -2 st pitch /
+-1 st formant; **ORIGINAL** returns just these nine parameters to their
+neutral defaults. This is an *empirical starting preset*, not an
+acoustically verified Hollywood voice-identity converter.
+
+Both buttons edit the existing automatable parameter IDs using normal VST3
+begin/perform/end notifications. They never change INPUT/OUTPUT levels,
+bypass, selected WAV IRs, IR mix, levels or predelays. The individual text
+fields remain accessible for small manual changes. No Hollywood parameter,
+separate macro state, additional DSP, new license functionality or state
+migration is added; the actual settings are recalled with the existing
+project state. Studio One click and editor reopen verification is still
+required.

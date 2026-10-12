@@ -3,6 +3,7 @@
 #include "MeterUnits.h"
 #include "IRLoadInfo.h"
 #include "VoiceParameterText.h"
+#include "HollywoodPreset.h"
 #include "pluginterfaces/base/ustring.h"
 #include "base/source/fstreamer.h"
 #include "pluginterfaces/vst/ivstmessage.h"
@@ -38,6 +39,16 @@ tresult VMController::requestIRFile(const std::string& utf8Path,bool microphone)
 }
 
 namespace {
+class VoicePresetButtons final:public VSTGUI::IController {
+ Steinberg::VMController* owner;
+public:
+ explicit VoicePresetButtons(Steinberg::VMController* controller):owner(controller){}
+ void valueChanged(VSTGUI::CControl* control) override {
+  if(!control||control->getValueNormalized()<=.5f)return;
+  if(control->getTag()==1010)owner->applyVoiceQuickPreset(true);
+  else if(control->getTag()==1011)owner->applyVoiceQuickPreset(false);
+ }
+};
 class IRLoaderButtons final:public VSTGUI::IController {
  Steinberg::VMController* owner;
  VSTGUI::VST3Editor* editor;
@@ -74,7 +85,22 @@ IPlugView* PLUGIN_API VMController::createView(FIDString name){
 VSTGUI::IController* VMController::createSubController(VSTGUI::UTF8StringPtr name,
  const VSTGUI::IUIDescription*,VSTGUI::VST3Editor* editor){
  if(name&&std::strcmp(name,"IRLoader")==0)return new IRLoaderButtons(this,editor);
+ if(name&&std::strcmp(name,"VoicePresets")==0)return new VoicePresetButtons(this);
  return nullptr;
+}
+void VMController::applyVoiceQuickPreset(bool hollywood){
+ // Host-compatible preset changes: update only existing voice parameters,
+ // with matching begin/perform/end edit notifications for Studio One recall.
+ // Neither INPUT/OUTPUT, BYPASS nor MIC/REVERB IR state is modified.
+ for(const auto& control:vm::hollywoodVoicePreset(hollywood)){
+  const auto id=static_cast<Vst::ParamID>(control.id);
+  if(!getParameterObject(id))continue;
+  if(std::fabs(getParamNormalized(id)-control.normalized)<1.e-7)continue;
+  beginEdit(id);
+  if(setParamNormalized(id,control.normalized)==kResultTrue)
+   performEdit(id,getParamNormalized(id));
+  endEdit(id);
+ }
 }
 tresult PLUGIN_API VMController::initialize(FUnknown* context){
  auto r=EditControllerEx1::initialize(context);if(r!=kResultOk)return r;

@@ -12,6 +12,8 @@ public:
  // UI-thread command: transmit selected WAV path to the processor.
  tresult requestIRFile(const std::string& utf8Path,bool microphone);
  tresult clearIRFile(bool microphone);
+ // One-click convenience preset; uses existing automatable parameters only.
+ void applyVoiceQuickPreset(bool hollywood);
  tresult PLUGIN_API setComponentState(IBStream*) SMTG_OVERRIDE;
  tresult PLUGIN_API getParamStringByValue(Vst::ParamID,Vst::ParamValue,Vst::String128) SMTG_OVERRIDE;
  tresult PLUGIN_API getParamValueByString(Vst::ParamID,Vst::TChar*,Vst::ParamValue&) SMTG_OVERRIDE;
