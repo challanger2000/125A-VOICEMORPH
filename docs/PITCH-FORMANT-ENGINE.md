@@ -196,3 +196,19 @@ UI physical text parsing now uses locale-independent `std::from_chars`
 with explicit plus-sign handling. Both decimal commas and periods parse
 correctly regardless of the Windows process locale, including when a German
 numeric locale is active. Unit and range validation remain unchanged.
+
+## Host 32/64-bit floating audio sample buffers
+
+The VST3 processor now reports support for both `kSample32` and
+`kSample64` sample-size requests. The internal voice/spectral/IR DSP stays
+32-bit float; the 64-bit host buffer path converts **every** input sample
+with finite/range validation before DSP and converts output samples back to
+64-bit. This is *64-bit host sample compatibility*, not double-precision
+internal DSP. Both paths preserve in-place and out-of-place buffer handling,
+valid physical input/output peak measurements, stereo/mono negotiated buses,
+automation and delay-compensated bypass. The CI `test_sample_format` runs
+both host-sample representations through equivalent 12,000-frame real DSP
+runs, both at neutral and with pitched/formanted spectral processing, then
+checks output differences and invalid/oversized sample sanitization.
+Actual host negotiation at kSample64 and offline bounce still require
+Windows VST3 host testing.
