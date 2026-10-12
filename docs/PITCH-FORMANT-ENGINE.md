@@ -125,3 +125,20 @@ No memory allocation, locking or added processing thread is required.
 A new full-signal direct-convolution test compares all output samples over
 many FIFO wraparounds, and repeats after reset. Small-buffer deadline profiles
 remain diagnostic until verified on Windows hardware and in Studio One.
+
+## State restore / IR publication ordering
+
+Host `setState()` must not change the live pitch, tone or IR DSP while the
+DAW's audio callback is running. A lock-free 19-float atomic mailbox now
+stages restored parameters, which are committed at the next audio block
+boundary. Audio automation synchronizes individual values back to the
+saved-state mailbox; `getState()` snapshots from that mailbox, not from a
+potentially concurrent audio-owned float array. The mailbox uses an even/odd
+sequence to reject partial project vectors, with an automated host-thread vs
+audio-thread restore race regression.
+
+Restored IR CLEAR commands and requeueing at host setup are serialized under
+`irJobMutex` with the IR worker's completed-stage publications. This prevents
+an older asynchronous CLEAR from replacing an already prepared new IR stage
+in the short window between restore and load completion. The lock is only
+used on host/control/worker paths, never in `process()`.

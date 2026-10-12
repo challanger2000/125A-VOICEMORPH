@@ -12,6 +12,7 @@
 namespace Steinberg {
 VMProcessor::VMProcessor(){
  setControllerClass(kVMControllerUID);
+ stateMailbox.initialize(params);
  irWorker=std::thread([this]{irWorkerLoop();});
 }
 VMProcessor::~VMProcessor(){
@@ -148,14 +149,15 @@ tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
   fixedIRChain.preparePitchLatency(static_cast<std::size_t>(pitchEngine.latencySamples()));
   totalLatencySamples.store(static_cast<uint32>(fixedIRChain.latencySamples()),std::memory_order_release);
   microphoneIR.reset();reverbIR.reset();apply();
-  // Invalidate IR stages prepared for any previous sample rate.
-  auto clearMic=std::make_unique<vm::StereoIRStage>();
-  auto clearRev=std::make_unique<vm::StereoIRStage>();
-  micHandoff.publishLatest(clearMic);
-  reverbHandoff.publishLatest(clearRev);
-  // Rebuild saved IRs for the actual project sample rate off the audio thread.
+  // Serialize clearing and requeueing against completed background IR loads.
+  // Otherwise a successful worker publication may be overwritten by an
+  // out-of-order CLEAR after it finishes.
   {
    std::lock_guard<std::mutex> lock(irJobMutex);
+   auto clearMic=std::make_unique<vm::StereoIRStage>();
+   auto clearRev=std::make_unique<vm::StereoIRStage>();
+   micHandoff.publishLatest(clearMic);
+   reverbHandoff.publishLatest(clearRev);
    micJobPath=micStatePath;hasMicJob=true;++micRevision;
    reverbJobPath=reverbStatePath;hasReverbJob=true;++reverbRevision;
    micIRStatus.store(micStatePath.empty()?0:1);
@@ -173,6 +175,10 @@ tresult PLUGIN_API VMProcessor::canProcessSampleSize(int32 n){
  return n==Vst::kSample32?kResultTrue:kResultFalse;
 }
 tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
+ // Project-state restore is published off-thread as atomics; consume only
+ // at the audio block boundary, never mutate the live DSP from setState().
+ const bool restored=stateMailbox.consumeAudio(params);
+ if(restored)apply();
  if(data.inputParameterChanges){
   auto* changes=data.inputParameterChanges;
   for(int32 i=0;i<changes->getParameterCount();++i){
@@ -180,8 +186,11 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
    int32 offset=0;Vst::ParamValue value=0;
    if(q->getPoint(q->getPointCount()-1,offset,value)!=kResultTrue)continue;
    auto id=q->getParameterId();
-   if(id>=kInput&&id<=kFormant && std::isfinite(value))
-    params[id-kInput]=static_cast<float>(std::clamp(value,0.,1.));
+   if(id>=kInput&&id<=kFormant && std::isfinite(value)){
+    const float normalized=static_cast<float>(std::clamp(value,0.,1.));
+    params[id-kInput]=normalized;
+    stateMailbox.storeAutomationAudio(id-kInput,normalized);
+   }
   }
   apply();
  }
@@ -297,7 +306,9 @@ tresult PLUGIN_API VMProcessor::getState(IBStream* stream){
  if(!stream)return kResultFalse;
  IBStreamer io(stream,kLittleEndian);
  if(!io.writeInt32(6))return kResultFalse;
- for(float p:params)if(!io.writeFloat(p))return kResultFalse;
+ float save[kParameterCount]{};
+ stateMailbox.snapshot(save);
+ for(float p:save)if(!io.writeFloat(p))return kResultFalse;
  std::string mic,rev;
  {
   std::lock_guard<std::mutex> lock(irJobMutex);
@@ -314,10 +325,16 @@ tresult PLUGIN_API VMProcessor::setState(IBStream* stream){
  for(int i=0;i<count;++i)if(!io.readFloat(next[i])||!std::isfinite(next[i]))return kResultFalse;
  std::string mic,rev;
  if(version>=5&&(!readIRPath(stream,mic)||!readIRPath(stream,rev)))return kResultFalse;
- for(int i=0;i<kParameterCount;++i)params[i]=vm::clamp(next[i],0,1);
- apply();
+ for(int i=0;i<kParameterCount;++i)next[i]=vm::clamp(next[i],0,1);
+ stateMailbox.publish(next);
  {
   std::lock_guard<std::mutex> lock(irJobMutex);
+  // The IR clear must be ordered under the same lock as worker publication.
+  // On an immediate successful load, the worker's prepared stage wins.
+  auto clearMic=std::make_unique<vm::StereoIRStage>();
+  auto clearRev=std::make_unique<vm::StereoIRStage>();
+  micHandoff.publishLatest(clearMic);
+  reverbHandoff.publishLatest(clearRev);
   micStatePath=mic;reverbStatePath=rev;
   micIRStatus.store(mic.empty()?0:1);reverbIRStatus.store(rev.empty()?0:1);
   micIRError.store(0);reverbIRError.store(0);
@@ -325,11 +342,6 @@ tresult PLUGIN_API VMProcessor::setState(IBStream* stream){
   micJobPath=mic;reverbJobPath=rev;
   ++micRevision;++reverbRevision;
  }
- // A restored empty selection must clear the previously playing IR too.
- auto clearMic=std::make_unique<vm::StereoIRStage>();
- auto clearRev=std::make_unique<vm::StereoIRStage>();
- micHandoff.publishLatest(clearMic);
- reverbHandoff.publishLatest(clearRev);
  irJobWake.notify_one();
  return kResultOk;
 }
