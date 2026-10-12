@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdio>
 #include <algorithm>
+#include <string>
 namespace Steinberg {
 tresult PLUGIN_API VMController::initialize(FUnknown* context){
  auto r=EditControllerEx1::initialize(context);if(r!=kResultOk)return r;
@@ -52,7 +53,7 @@ tresult PLUGIN_API VMController::getParamStringByValue(Vst::ParamID id,Vst::Para
  if(!string)return kResultFalse;
  if(id==kInput||id==kOutput||id==kMicMix||id==kReverbMix||
     id==kMicLevel||id==kReverbLevel||id==kMicPredelay||
-    id==kReverbPredelay||id==kMicPosition){
+    id==kReverbPredelay||id==kMicPosition||id==kLowCut){
   if(!std::isfinite(value))value=0.;
   value=std::max(0.,std::min(1.,value));
   char display[40];
@@ -62,6 +63,8 @@ tresult PLUGIN_API VMController::getParamStringByValue(Vst::ParamID id,Vst::Para
    std::snprintf(display,sizeof(display),"%.0f %%",value*100.);
   else if(id==kMicLevel||id==kReverbLevel)
    std::snprintf(display,sizeof(display),"%.0f %%",value*400.);
+  else if(id==kLowCut)
+   std::snprintf(display,sizeof(display),"%s",value<=0.?"OFF":(std::to_string(static_cast<int>(std::lround(35+145*value)))+" Hz").c_str());
   else if(id==kMicPredelay||id==kReverbPredelay)
    std::snprintf(display,sizeof(display),"%.0f ms",value*2000.);
   else std::snprintf(display,sizeof(display),"%s",value<.5?"PRE":"POST");

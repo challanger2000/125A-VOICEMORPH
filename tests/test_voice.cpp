@@ -48,7 +48,7 @@ int main(){
    if(n>24000)high+=y*y;
   }
   if(cut==0.f){assert(std::fabs(low-high)<2.0);}
-  else assert(low<high*.15);
+  else assert(low<high*.025);
  }
  std::cout<<"Voice DSP foundation PASS\n";
 }

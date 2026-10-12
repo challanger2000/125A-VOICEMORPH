@@ -14,6 +14,13 @@ struct Biquad {
   double A=std::pow(10.,db/40.),w=2*pi*std::min(hz,.45*sr)/sr,alpha=std::sin(w)/(2*q),co=std::cos(w),div=1+alpha/A;
   b0=(1+alpha*A)/div;b1=-2*co/div;b2=(1-alpha*A)/div;a1=-2*co/div;a2=(1-alpha/A)/div;
  }
+ void highpass(double sr,double hz) noexcept {
+  const double w=2*pi*std::min(hz,.45*sr)/sr;
+  const double co=std::cos(w),alpha=std::sin(w)/(2*0.7071067811865476);
+  const double inv=1/(1+alpha);
+  b0=(1+co)*.5*inv;b1=-(1+co)*inv;b2=b0;
+  a1=-2*co*inv;a2=(1-alpha)*inv;
+ }
  float run(float x) noexcept {double y=b0*x+z1;z1=b1*x-a1*y+z2;z2=b2*x-a2*y;if(!std::isfinite(y)){reset();return 0;}return static_cast<float>(y);}
 };
 struct Parameters {
@@ -26,7 +33,7 @@ struct Meters {
 class VoiceDSP {
  double rate=48000;
  Parameters p{};
- Biquad nose[3],body,warm,air;
+ Biquad nose[3],body,warm,air,lowCutFilter;
  Biquad nasalDetector[3];
  float inGain=1,outGain=1,envelope=0,attack=0,release=0,hpX=0,hpY=0,hpCoeff=0;
  float detectorEnvelope[3]={},fullEnvelope=0,denasalReduction[3]={};
@@ -51,13 +58,14 @@ class VoiceDSP {
   detectorAttack=std::exp(-1/(.025*rate));
   detectorRelease=std::exp(-1/(.140*rate));
   attack=std::exp(-1/(.010*rate));release=std::exp(-1/(.100*rate));hpCoeff=std::exp(-2*pi*(35.+145.*clamp(p.lowCut,0,1))/rate);
+  lowCutFilter.highpass(rate,35.+145.*clamp(p.lowCut,0,1));
  }
 public:
  VoiceDSP(){update();}
  void prepare(double sr) noexcept {
   rate=(sr>=8000&&sr<=384000)?sr:48000;
   for(int i=0;i<3;++i){nose[i].reset();nasalDetector[i].reset();detectorEnvelope[i]=0;denasalReduction[i]=0;}
-  body.reset();warm.reset();air.reset();envelope=hpX=hpY=fullEnvelope=0;
+  body.reset();warm.reset();air.reset();lowCutFilter.reset();envelope=hpX=hpY=fullEnvelope=0;
   detectorCounter=0;update();meter.reset();
  }
  void setParameters(const Parameters& next) noexcept {p=next;update();}
@@ -66,9 +74,8 @@ public:
  float processSample(float s) noexcept {
   if(!std::isfinite(s))s=0;
   const float input=s*inGain;peak(meter.inputPeak,std::fabs(input));
-  const float hp=input-hpX+hpCoeff*hpY;hpX=input;hpY=hp;
-  // At zero, this filter is fully bypassed. Otherwise LOW CUT sets cutoff 35..180 Hz.
-  float x=p.lowCut<=0.f?input:hp;
+  // Second-order Butterworth (12 dB/oct); 0% bypasses the filter entirely.
+  float x=p.lowCut<=0.f?input:lowCutFilter.run(input);
   // Detector compares nasal-band emphasis to broadband energy; smoothed and
   // recalculated every 128 samples to avoid audio-rate coefficient modulation.
   const float broadband=std::fabs(x);
