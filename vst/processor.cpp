@@ -48,10 +48,16 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
  if(data.numSamples<=0||data.numInputs<1||data.numOutputs<1)return kResultOk;
  auto& input=data.inputs[0];auto& output=data.outputs[0];
  if(data.symbolicSampleSize!=Vst::kSample32)return kResultFalse;
+ if(!input.channelBuffers32||!output.channelBuffers32)return kResultFalse;
  const int32 channels=std::min({input.numChannels,output.numChannels,2});
- if(channels==2 && (!input.channelBuffers32[0]||!input.channelBuffers32[1]||
-                    !output.channelBuffers32[0]||!output.channelBuffers32[1]))
+ if(channels<1)return kResultFalse;
+ if((channels==2 && (!input.channelBuffers32[0]||!input.channelBuffers32[1]||
+                    !output.channelBuffers32[0]||!output.channelBuffers32[1])) ||
+    (channels==1 && (!input.channelBuffers32[0]||!output.channelBuffers32[0])))
   return kResultFalse;
+ // Always sanitize non-finite input samples before DSP. Avoid changing input
+ // buffers because the host may share them with other processors.
+ // Individual VoiceDSP instances already reject non-finite input values.
  // Snapshot dry signal before modifying any buffers (VST3 in-place processing).
  float dryPeak[2]={0.f,0.f};
  for(int32 channel=0;channel<channels;++channel){
@@ -87,7 +93,9 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
   for(int32 ch=0;ch<channels;++ch){
    auto* src=input.channelBuffers32[ch];auto* dst=output.channelBuffers32[ch];
    if(!src||!dst)continue;
-   if(params[kBypass-kInput]>=.5f){if(src!=dst)std::copy_n(src,data.numSamples,dst);}
+   if(params[kBypass-kInput]>=.5f){
+    if(src!=dst)std::copy_n(src,data.numSamples,dst);
+   }
    else dsp[ch].process(src,dst,static_cast<std::size_t>(data.numSamples));
   }
  }
