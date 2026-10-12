@@ -2,6 +2,8 @@
 #include "WaveIR.h"
 #include <cstdint>
 #include <fstream>
+#include <filesystem>
+#include <exception>
 #include <limits>
 #include <string>
 #include <vector>
@@ -10,7 +12,9 @@ namespace vm {
 inline bool loadWaveIRFile(const std::string& path,WaveIR& target,std::string& error,
                            std::size_t maxBytes=256ull*1024*1024) {
  if(path.empty()){error="Empty WAV path";return false;}
- std::ifstream file(path,std::ios::binary|std::ios::ate);
+ // VSTGUI supplies UTF-8. u8path also handles non-ASCII Windows filenames.
+ try {
+ std::ifstream file(std::filesystem::u8path(path),std::ios::binary|std::ios::ate);
  if(!file){error="Cannot open IR file";return false;}
  const auto end=file.tellg();
  if(end<=0||static_cast<std::uint64_t>(end)>maxBytes){
@@ -22,5 +26,6 @@ inline bool loadWaveIRFile(const std::string& path,WaveIR& target,std::string& e
   error="Cannot read entire IR file";return false;
  }
  return decodeWave(bytes.data(),bytes.size(),target,error,maxBytes);
+ } catch(const std::exception&) {error="Invalid IR path or file access failure";return false;}
 }
 }

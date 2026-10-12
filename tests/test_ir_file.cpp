@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <fstream>
+#include <filesystem>
 #include <string>
 #include <vector>
 int main(){
@@ -23,7 +24,16 @@ int main(){
  const auto old=ir.interleaved;
  assert(!vm::loadWaveIRFile(path,ir,error,16));
  assert(ir.interleaved==old);
- std::remove(path.c_str());
+ std::filesystem::remove(std::filesystem::u8path(path));
  assert(!vm::loadWaveIRFile(path,ir,error));
  assert(ir.interleaved==old);
+ // Confirm Unicode filenames survive UTF-8 -> platform path conversion.
+ const std::string unicodePath="voicemorph_\xC3\xBC_\xE9\x9F\xB3.wav";
+ {
+  std::ofstream out(std::filesystem::u8path(unicodePath),std::ios::binary);
+  out.write(reinterpret_cast<const char*>(bytes),sizeof(bytes));
+ }
+ assert(vm::loadWaveIRFile(unicodePath,ir,error));
+ assert(ir.channels==1&&ir.frames()==1);
+ std::filesystem::remove(std::filesystem::u8path(unicodePath));
 }

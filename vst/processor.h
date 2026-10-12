@@ -4,6 +4,7 @@
 #include "IRStage.h"
 #include "IRStageHandoff.h"
 #include "IRFileBuilder.h"
+#include "FixedLatencyIRChain.h"
 #include <string>
 #include <memory>
 #include <cstdint>
@@ -26,6 +27,7 @@ public:
  tresult PLUGIN_API notify(Vst::IMessage*) SMTG_OVERRIDE;
  tresult PLUGIN_API setupProcessing(Vst::ProcessSetup&) SMTG_OVERRIDE;
  tresult PLUGIN_API canProcessSampleSize(int32) SMTG_OVERRIDE;
+ uint32 PLUGIN_API getLatencySamples() SMTG_OVERRIDE;
  tresult PLUGIN_API process(Vst::ProcessData&) SMTG_OVERRIDE;
  tresult PLUGIN_API getState(IBStream*) SMTG_OVERRIDE;
  tresult PLUGIN_API setState(IBStream*) SMTG_OVERRIDE;
@@ -36,6 +38,7 @@ private:
  vm::StereoIRStage microphoneIR;
  vm::StereoIRStage reverbIR;
  vm::IRStageHandoff micHandoff,reverbHandoff;
+ vm::FixedLatencyIRChain fixedIRChain;
  std::atomic<double> currentSampleRate{0.};
  std::thread irWorker;
  std::mutex irJobMutex;

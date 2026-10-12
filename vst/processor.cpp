@@ -122,7 +122,7 @@ tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
  if(r==kResultOk){
   currentSampleRate.store(setup.sampleRate,std::memory_order_release);
   for(auto& d:dsp)d.prepare(setup.sampleRate);
-  microphoneIR.reset();reverbIR.reset();apply();
+  microphoneIR.reset();reverbIR.reset();fixedIRChain.reset();apply();
   // Invalidate IR stages prepared for any previous sample rate.
   auto clearMic=std::make_unique<vm::StereoIRStage>();
   auto clearRev=std::make_unique<vm::StereoIRStage>();
@@ -137,6 +137,9 @@ tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
   irJobWake.notify_one();
  }
  return r;
+}
+uint32 PLUGIN_API VMProcessor::getLatencySamples(){
+ return static_cast<uint32>(vm::FixedLatencyIRChain::kLatency);
 }
 tresult PLUGIN_API VMProcessor::canProcessSampleSize(int32 n){
  return n==Vst::kSample32?kResultTrue:kResultFalse;
@@ -187,40 +190,18 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
   for(int32 i=0;i<data.numSamples;++i)
    if(std::isfinite(samples[i]))dryPeak[channel]=std::max(dryPeak[channel],std::fabs(samples[i]));
  }
- // Both prepared IR stages use latency-aligned dry/wet paths.
- // Unloaded stages are identity; global bypass remains absolute.
- if(channels==2 && params[kBypass-kInput]<.5f &&
-    (mic->ready()||rev->ready())) {
-  for(int32 n=0;n<data.numSamples;++n){
-   float l=input.channelBuffers32[0][n];
-   float r=input.channelBuffers32[1][n];
-   if(!std::isfinite(l))l=0.f;
-   if(!std::isfinite(r))r=0.f;
-   float nextL=0.f,nextR=0.f;
-   const bool microphonePre=params[kMicPosition-kInput]<.5f;
-   if(microphonePre&&mic->ready()){
-    mic->process(l,r,nextL,nextR);l=nextL;r=nextR;
-   }
-   l=dsp[0].processSample(l);
-   r=dsp[1].processSample(r);
-   if(!microphonePre&&mic->ready()){
-    mic->process(l,r,nextL,nextR);l=nextL;r=nextR;
-   }
-   if(rev->ready()){
-    rev->process(l,r,nextL,nextR);l=nextL;r=nextR;
-   }
-   output.channelBuffers32[0][n]=l;
-   output.channelBuffers32[1][n]=r;
-  }
- } else {
-  for(int32 ch=0;ch<channels;++ch){
-   auto* src=input.channelBuffers32[ch];auto* dst=output.channelBuffers32[ch];
-   if(!src||!dst)continue;
-   if(params[kBypass-kInput]>=.5f){
-    if(src!=dst)std::copy_n(src,data.numSamples,dst);
-   }
-   else dsp[ch].process(src,dst,static_cast<std::size_t>(data.numSamples));
-  }
+ // Constant 256-sample signal path with two 128-sample inserts. Disabled
+ // IRs are latency-matched; bypass also remains delay-compensated.
+ const bool pre=params[kMicPosition-kInput]<.5f;
+ const bool bypass=params[kBypass-kInput]>=.5f;
+ for(int32 n=0;n<data.numSamples;++n){
+  const float inL=input.channelBuffers32[0][n];
+  const float inR=channels>1?input.channelBuffers32[1][n]:0.f;
+  float outL=0.f,outR=0.f;
+  fixedIRChain.process(inL,inR,outL,outR,
+                       dsp[0],dsp[1],mic,rev,pre,bypass);
+  output.channelBuffers32[0][n]=outL;
+  if(channels>1)output.channelBuffers32[1][n]=outR;
  }
  for(int32 ch=channels;ch<output.numChannels;++ch){
   if(output.channelBuffers32[ch])std::fill_n(output.channelBuffers32[ch],data.numSamples,0.f);
