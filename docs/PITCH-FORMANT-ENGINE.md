@@ -54,3 +54,18 @@ processor is disabled, host PDC reports the remaining 256-sample dual-IR delay,
 and the neutral/IR-only audio path stays valid. A later supported setup fully
 reinitialises the pitch processor and restores the measured spectral latency.
 This fallback does not claim pitch/formant processing works at those unusual rates.
+
+## Realtime allocation and CPU probe (Windows CI)
+
+`test_pitch_realtime` simulates 128-sample callback blocks, including the
+spectral stage, stereo routing, voice tone/dynamics, two inactive IR inserts,
+bypass crossfading and pitch/formant automation. Profiles at 44.1/48/96 kHz
+warm up FFT/STFT state before measurement. The probe monitors C++ `operator
+new` / `operator new[]` in the timed audio region and fails on any allocation.
+It does **not** intercept direct `malloc` or OS allocation APIs.
+
+Per-rate mean/p95/p99/max, audio callback deadlines and overrun counts are
+printed in the Actions log. Shared GitHub runner timing is *diagnostic* and
+not a release gate. The numbers include instrumented callback overhead.
+Measurements with loaded long dense IRs and live Studio One speech are
+still required for release.
