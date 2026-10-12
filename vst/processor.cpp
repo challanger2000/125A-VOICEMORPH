@@ -54,20 +54,11 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
   for(int32 i=0;i<data.numSamples;++i)
    if(std::isfinite(samples[i]))dryPeak[channel]=std::max(dryPeak[channel],std::fabs(samples[i]));
  }
- // Stereo IR stages run on post-voice samples. Unloaded stages are identity.
- // Two passes are deliberately conditional: there is no added latency until an IR is loaded.
- if(channels==2 && params[kBypass-kInput]<.5f && microphoneIR.ready() && reverbIR.ready()) {
-  for(int32 n=0;n<data.numSamples;++n) {
-   const float left=dsp[0].processSample(input.channelBuffers32[0][n]);
-   const float right=dsp[1].processSample(input.channelBuffers32[1][n]);
-   float micL=0,micR=0,revL=0,revR=0;
-   microphoneIR.process(left,right,micL,micR);
-   reverbIR.process(micL,micR,revL,revR);
-   output.channelBuffers32[0][n]=revL;
-   output.channelBuffers32[1][n]=revR;
-  }
- } else if(channels==2 && params[kBypass-kInput]<.5f && (microphoneIR.ready() || reverbIR.ready())) {
-  for(int32 n=0;n<data.numSamples;++n) {
+ // Both prepared IR stages use latency-aligned dry/wet paths.
+ // Unloaded stages are identity; global bypass remains absolute.
+ if(channels==2 && params[kBypass-kInput]<.5f &&
+    (microphoneIR.ready()||reverbIR.ready())) {
+  for(int32 n=0;n<data.numSamples;++n){
    float left=dsp[0].processSample(input.channelBuffers32[0][n]);
    float right=dsp[1].processSample(input.channelBuffers32[1][n]);
    float l=left,r=right;
