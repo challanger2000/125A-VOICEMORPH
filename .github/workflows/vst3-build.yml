@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [develop/v1.0.0]
-    paths: [vst/**, src/**, CMakeLists.txt, .github/workflows/vst3-build.yml]
+    paths: [vst/**, src/**, tests/**, CMakeLists.txt, .github/workflows/vst3-build.yml]
 jobs:
   build:
     runs-on: windows-2022
