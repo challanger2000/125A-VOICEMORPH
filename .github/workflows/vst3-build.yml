@@ -21,3 +21,10 @@ jobs:
         run: cmake --build build --config Release --target VoiceMorph test_voice test_ir test_wav test_ir_matrix test_partitioned_ir test_fft_stereo --parallel
       - name: Unit tests
         run: ctest --test-dir build -C Release --output-on-failure
+      - name: Package VST3 development build
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoiceMorph-v0.1.0-Windows-x64-DEVELOPMENT
+          path: build/VST3/Release/VoiceMorph.vst3/
+          if-no-files-found: error
+          retention-days: 14
