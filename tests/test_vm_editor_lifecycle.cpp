@@ -1,10 +1,10 @@
 // Independent native Win32 VST3 editor lifecycle probe. Does not link to
 // the plugin's C++ classes: loads the exact staged Windows VST3 bundle.
 // Conceptually modelled on 125A Plugin Tester Final's own editor probe.
-#define NOMINMAX
 #include <windows.h>
 #include <objbase.h>
 #include "public.sdk/source/vst/hosting/module.h"
+#include "public.sdk/source/main/pluginfactory.h"
 #include "public.sdk/source/vst/hosting/hostclasses.h"
 #include "base/source/fobject.h"
 #include "pluginterfaces/gui/iplugview.h"
