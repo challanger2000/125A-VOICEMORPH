@@ -143,10 +143,10 @@ void VMProcessor::apply() noexcept {
  microphoneIR.setWetLevel(params[kMicLevel-kInput]*4.f);
  preampIR.setMix(params[kPreampMix-kInput]);
  preampIR.setWetLevel(params[kPreampLevel-kInput]*4.f);
- preampIR.setPredelayNormalized(params[kPreampPredelay-kInput]);
+ preampIR.setPredelayNormalized(0.f);
  reverbIR.setMix(vm::reverbWetMix(params[kReverbMix-kInput]));
  reverbIR.setWetLevel(params[kReverbLevel-kInput]*4.f);
- microphoneIR.setPredelayNormalized(params[kMicPredelay-kInput]);
+ microphoneIR.setPredelayNormalized(0.f);
  reverbIR.setPredelayNormalized(params[kReverbPredelay-kInput]);
  pitchEngine.setPitchSemitones(params[kPitch-kInput]*18.f-12.f);
  pitchEngine.setFormantSemitones(params[kFormant-kInput]*14.f-8.f);
@@ -165,6 +165,8 @@ tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
   fixedIRChain.preparePitchLatency(static_cast<std::size_t>(pitchEngine.latencySamples()));
   totalLatencySamples.store(static_cast<uint32>(fixedIRChain.latencySamples()),std::memory_order_release);
   microphoneIR.reset();preampIR.reset();reverbIR.reset();
+   for(int k=0;k<4;++k){meterDisplay[k]=meterHeld[k]=0.f;meterHoldSeconds[k]=0.;}
+   clipHoldSeconds[0]=clipHoldSeconds[1]=0.;
    b1Correction.prepare(setup.sampleRate);apply();
   // Serialize clearing and requeueing against completed background IR loads.
   // Otherwise a successful worker publication may be overwritten by an
@@ -265,12 +267,12 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
    if(liveMic){
     liveMic->setMix(params[kMicMix-kInput]);
     liveMic->setWetLevel(params[kMicLevel-kInput]*4.f);
-    liveMic->setPredelayNormalized(params[kMicPredelay-kInput]);
+    liveMic->setPredelayNormalized(0.f);
    }
    if(livePreamp){
      livePreamp->setMix(params[kPreampMix-kInput]);
      livePreamp->setWetLevel(params[kPreampLevel-kInput]*4.f);
-     livePreamp->setPredelayNormalized(params[kPreampPredelay-kInput]);
+     livePreamp->setPredelayNormalized(0.f);
     }
     if(liveRev){
     liveRev->setMix(vm::reverbWetMix(params[kReverbMix-kInput]));
@@ -289,10 +291,10 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
  liveMic=mic;livePreamp=preamp;liveRev=rev;
  mic->setMix(params[kMicMix-kInput]);
  mic->setWetLevel(params[kMicLevel-kInput]*4.f);
- mic->setPredelayNormalized(params[kMicPredelay-kInput]);
+ mic->setPredelayNormalized(0.f);
  preamp->setMix(params[kPreampMix-kInput]);
  preamp->setWetLevel(params[kPreampLevel-kInput]*4.f);
- preamp->setPredelayNormalized(params[kPreampPredelay-kInput]);
+ preamp->setPredelayNormalized(0.f);
  rev->setMix(vm::reverbWetMix(params[kReverbMix-kInput]));
  rev->setWetLevel(params[kReverbLevel-kInput]*4.f);
  rev->setPredelayNormalized(params[kReverbPredelay-kInput]);
@@ -349,7 +351,7 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
  // IRs are latency-matched; bypass also remains delay-compensated.
  for(int32 n=0;n<data.numSamples;++n){
   applyAutomationAt(n);
-  const bool pre=params[kMicPosition-kInput]<.5f;
+  const bool pre=true; // retired MIC POST route, fixed stage ordering
   const bool bypass=params[kBypass-kInput]>=.5f;
   const float inL=readInput(0,n);
   const float inR=vm::rightVoiceInput(
@@ -381,25 +383,42 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
    meterOutput[channel]=std::max(meterOutput[channel],std::fabs(rendered));
   }
  }
+ // Realtime-only meter telemetry; holds peaks for 650 ms and decays
+ // exponentially with a 350 ms release independent of host block size.
+ const double rate=std::clamp(currentSampleRate.load(std::memory_order_relaxed),8000.,384000.);
+ const double elapsed=data.numSamples/rate;
+ const float release=static_cast<float>(std::exp(-elapsed/.350));
+ const float peaks[4]={dryPeak[0],dryPeak[1],meterOutput[0],meterOutput[1]};
+ for(int ch=0;ch<4;++ch){
+  const float peak=std::isfinite(peaks[ch])?std::max(0.f,peaks[ch]):0.f;
+  if(peak>=meterHeld[ch]){
+   meterHeld[ch]=peak;meterHoldSeconds[ch]=.650;
+  }else{
+   meterHoldSeconds[ch]=std::max(0.,meterHoldSeconds[ch]-elapsed);
+   if(meterHoldSeconds[ch]<=0.)
+    meterHeld[ch]=std::max(peak,meterHeld[ch]*release);
+  }
+  meterDisplay[ch]=meterHeld[ch];
+ }
+ for(int kind=0;kind<2;++kind){
+  const int k=kind*2;
+  if(std::max(peaks[k],peaks[k+1])>=1.f)clipHoldSeconds[kind]=1.0;
+  else clipHoldSeconds[kind]=std::max(0.,clipHoldSeconds[kind]-elapsed);
+ }
  if(data.outputParameterChanges && data.numSamples>0) {
   const Vst::ParamID meterIds[4]={kInputPeakL,kInputPeakR,kOutputPeakL,kOutputPeakR};
-  for(int32 channel=0;channel<2;++channel){
-   // Report physical bus input peaks consistently, irrespective of input trim, bypass or IR routing.
-   const float values[2]={dryPeak[channel],meterOutput[channel]};
-   for(int kind=0;kind<2;++kind){
-    int32 index=0;
-    auto* q=data.outputParameterChanges->addParameterData(meterIds[kind*2+channel],index);
-    if(q){int32 point=0;q->addPoint(data.numSamples-1,
-     std::min(1.,static_cast<double>(std::max(0.f,values[kind]))),point);}
-   }
+  for(int ch=0;ch<4;++ch){
+   int32 index=0;
+   auto* q=data.outputParameterChanges->addParameterData(meterIds[ch],index);
+   if(q){int32 point=0;q->addPoint(data.numSamples-1,
+     std::clamp(static_cast<double>(meterDisplay[ch]),0.,1.),point);}
   }
   const Vst::ParamID clipIds[2]={kInputClip,kOutputClip};
   for(int kind=0;kind<2;++kind){
-   const bool clipped=std::max(kind?meterOutput[0]:dryPeak[0],
-                               kind?meterOutput[1]:dryPeak[1])>=1.f;
    int32 index=0;
-   auto* queue=data.outputParameterChanges->addParameterData(clipIds[kind],index);
-   if(queue){int32 point=0;queue->addPoint(data.numSamples-1,clipped?1.:0.,point);}
+   auto* q=data.outputParameterChanges->addParameterData(clipIds[kind],index);
+   if(q){int32 point=0;q->addPoint(data.numSamples-1,
+    clipHoldSeconds[kind]>0.?1.:0.,point);}
   }
   const Vst::ParamID statusIds[3]={kMicIRStatus,kPreampIRStatus,kReverbIRStatus};
   const double statuses[3]={micIRStatus.load(std::memory_order_acquire)/3.,

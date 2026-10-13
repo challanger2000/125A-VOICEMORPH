@@ -41,7 +41,7 @@ public:
 };
 class FixedLatencyIRChain {
  StereoFixedDelay<128> micEmpty_,preampEmpty_,reverbEmpty_;
- StereoVariableDelay pitchDry_,absoluteBypass_;
+ StereoVariableDelay pitchDry_,voiceDry_;
  std::size_t pitchLatency_=0;
  float bypassAmount_=0.f,pitchAmount_=0.f;
  float inputGain_=1.f,outputGain_=1.f;
@@ -62,14 +62,14 @@ public:
  void preparePitchLatency(std::size_t samples){
   pitchLatency_=samples;
   pitchDry_.prepare(samples);
-  absoluteBypass_.prepare(kLatency+samples);
+  voiceDry_.prepare(samples);
   micEmpty_.reset();preampEmpty_.reset();reverbEmpty_.reset();
   bypassAmount_=pitchAmount_=0.f;
  }
  std::size_t latencySamples()const noexcept{return kLatency+pitchLatency_;}
  void reset() noexcept {
   micEmpty_.reset();preampEmpty_.reset();reverbEmpty_.reset();
-  pitchDry_.reset();absoluteBypass_.reset();
+  pitchDry_.reset();voiceDry_.reset();
   bypassAmount_=pitchAmount_=0.f;
  }
  // Normal path: INPUT -> B1 -> MIC -> PREAMP -> PITCH/VOICE -> REVERB -> OUTPUT.
@@ -83,15 +83,17 @@ public:
               B1Correction* correction=nullptr) noexcept {
   if(!std::isfinite(l))l=0.f;
   if(!std::isfinite(r))r=0.f;
-  float bypassL=0.f,bypassR=0.f;
-  absoluteBypass_.process(l,r,bypassL,bypassR);
+  (void)microphonePre; // Deprecated control: fixed MIC->PREAMP route.
   constexpr float step=1.f/128.f;
   bypassAmount_=std::clamp(bypassAmount_+(bypass?step:-step),0.f,1.f);
   l*=inputGain_;r*=inputGain_;
   if(correction)correction->process(l,r);
-  if(microphonePre)stage(mic,micEmpty_,l,r);
+  stage(mic,micEmpty_,l,r);
   stage(preamp,preampEmpty_,l,r);
-  if(pitch&&pitch->ready()){
+  // Tap pre-VOICE after all preceding stages, align to spectral latency.
+  float dryVoiceL=0.f,dryVoiceR=0.f;
+  voiceDry_.process(l,r,dryVoiceL,dryVoiceR);
+    if(pitch&&pitch->ready()){
    float dryL=0.f,dryR=0.f,wetL=0.f,wetR=0.f;
    pitchDry_.process(l,r,dryL,dryR);
    pitch->processSample(l,r,wetL,wetR);
@@ -100,12 +102,12 @@ public:
    l=dryL*(1.f-pitchAmount_)+wetL*pitchAmount_;
    r=dryR*(1.f-pitchAmount_)+wetR*pitchAmount_;
   }
-  l=left.processSample(l);
-  r=right.processSample(r);
-  if(!microphonePre)stage(mic,micEmpty_,l,r);
+  // Voice processing remains warm during voice-only bypass.
+  l=left.processSample(l);r=right.processSample(r);
+  l=l*(1.f-bypassAmount_)+dryVoiceL*bypassAmount_;
+  r=r*(1.f-bypassAmount_)+dryVoiceR*bypassAmount_;
   stage(reverb,reverbEmpty_,l,r);
-  outL=l*outputGain_*(1.f-bypassAmount_)+bypassL*bypassAmount_;
-  outR=r*outputGain_*(1.f-bypassAmount_)+bypassR*bypassAmount_;
+  outL=l*outputGain_;outR=r*outputGain_;
  }
 };
 } // namespace vm

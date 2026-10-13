@@ -74,6 +74,48 @@ A separate private B1/U87/V311 tone IR was prepared from the user's
 commercially obtained IR files. Those source files and derivative WAVs are
 **not** stored in this GitHub repository.
 
+## VOICEMORPH GUI and signal-chain revision (2026-10-13)
+
+**Private development; not final.** The fixed audible chain is
+INPUT -> Studio Projects B1 EQ -> MIC IR -> PREAMP IR ->
+VOICE PROCESSING [voice-only bypass] -> REVERB IR -> OUTPUT.
+BYPASS affects **only** VOICE (pitch/formant, De-Nasal, Chest, Warmth,
+Grit, Presence, Compression and Low Cut), never earlier mic correction,
+either character IR, REVERB or OUTPUT. The prevoice bypass tap is delayed
+by the exact active spectral latency and crossfaded over 128 samples;
+the voice processors continue running internally while bypassed.
+
+The three optional IR engines retain fixed 128-sample convolution
+latency each, even if empty. 384 fixed + active spectral latency
+is still declared to the host. The GUI shows seven sequential numbered
+stages, with INPUT/MIC/PREAMP/B1 on the upper row, VOICE in the middle,
+REVERB/OUTPUT on the lower row. B1 and VOICE bypass are click switches
+with visible state; all active continuous controls use mouse sliders
+plus direct physical-unit number edit. The two stereo L/R metering
+sections use 650 ms peak hold and sample-rate-correct 350 ms release,
+with 1 second clip indicators. Low Cut now supports up to 200 Hz and
+0% still means OFF.
+
+The MIC PRE/POST control (old ID 114) and MIC/PREAMP IR predelays
+(old IDs 115 and 122) are **retired** as user-facing options. These IDs
+remain in VST3 state for compatibility but no longer affect DSP.
+Consequently an old development session using MIC POST or a non-zero
+preamp/mic predelay will change sonically upon upgrade. This is an
+intentional pre-release routing correction. REVERB predelay stays
+available and functional. Existing WAV source bytes, user audio
+and old parameter IDs remain unmodified.
+
+The official source logo is
+`vst/resource/125A_Logo_Master_FINAL.svg`, an exact copy from
+`challanger2000/125A-Branding`. The bitmap
+`vst/resource/125A_Logo_Master.png` is a geometry-preserving
+rasterization of that master, not a letterfont or redrawn logo.
+The 1000x615 GUI retains 100/150% zoom.
+
+The new mouse/GUI layout needs **real Studio One verification**;
+CI Validator/CTest PASS alone will not prove correct rendering,
+knob gestures, project recall or user-level sonic acceptance.
+
 ## B1 correction and explicit signal flow (development)
 
 The editor now numbers the live chain 01 INPUT → 02 B1 CORRECTION → 03 MIC IR → 04 PREAMP IR → 05 VOICE → 06 REVERB IR → 07 OUTPUT, with L/R input/output peak readouts and per-block clipping indication. Input and output gain are at their corresponding ends. Optional MIC POST explicitly moves MIC behind VOICE for compatibility with prior projects. B1 EQ is **documented-shape and empirically approximated** from the Studio Projects B1 response described by Bonedo, not a calibrated measurement. See [signal-chain evidence](docs/B1-SIGNAL-CHAIN.md).

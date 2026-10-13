@@ -52,6 +52,8 @@ private:
  vm::FixedLatencyIRChain fixedIRChain;
  vm::PitchFormantDSP pitchEngine;
  std::atomic<uint32> totalLatencySamples{384};
+ float meterDisplay[4]{},meterHeld[4]{};
+ double meterHoldSeconds[4]{},clipHoldSeconds[2]{};
  std::atomic<double> currentSampleRate{0.};
  std::thread irWorker;
  std::mutex irJobMutex;

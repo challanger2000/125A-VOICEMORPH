@@ -55,7 +55,7 @@ int main(){
   std::setlocale(LC_NUMERIC,originalLocale.c_str());
  }
  valid(108,"OFF",0.);
- valid(108,"180 Hz",1.);
+ valid(108,"200 Hz",1.);
  valid(110,"35 %",.35);
  valid(111,"200 %",.5);
  valid(116,"125 ms",.0625);
@@ -79,6 +79,7 @@ int main(){
  invalid(102,"101 %");
  invalid(111,"401%");
  invalid(108,"33 Hz");
+ invalid(108,"201 Hz");
  invalid(110,"35 dB");
  invalid(115,"-1 ms");
  invalid(116,"1 000 ms");
@@ -89,5 +90,5 @@ int main(){
  invalid(109,"MAYBE");
  invalid(114,"BACK");
  assert(!vm::formatVoiceControl(205,.5,nullptr,0));
- std::cout<<"19 editable controls: format, parse, unit and range validation PASS\n";
+ std::cout<<"23 compatible control IDs: format, parse, unit and range validation PASS\n";
 }

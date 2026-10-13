@@ -21,7 +21,7 @@ inline bool formatVoiceControl(int id,double normalized,char* buf,std::size_t ca
   result=std::snprintf(buf,capacity,"%.0f %%",n*400.);
  else if(id==108)
   result=n<=0.?std::snprintf(buf,capacity,"OFF"):
-    std::snprintf(buf,capacity,"%.0f Hz",35.+145.*n);
+    std::snprintf(buf,capacity,"%.0f Hz",35.+165.*n);
  else if((id==109||id==119))result=std::snprintf(buf,capacity,"%s",n>=.5?"ON":"OFF");
  else if(id==114)result=std::snprintf(buf,capacity,"%s",n>=.5?"POST":"PRE");
  else if(id==115||id==116||id==122)result=std::snprintf(buf,capacity,"%.0f ms",n*2000.);
@@ -84,8 +84,8 @@ inline bool parseVoiceControl(int id,const std::string& input,double& normalized
   if(!accepts("%")||physical<0.||physical>400.)return false;
   n=physical/400.;
  }else if(id==108){
-  if(!accepts("hz")||physical<35.||physical>180.)return false;
-  n=(physical-35.)/145.;
+  if(!accepts("hz")||physical<35.||physical>200.)return false;
+  n=(physical-35.)/165.;
   // Entering the minimum enabled frequency should turn LOW CUT ON.
   if(n==0.)n=1.e-6;
  }else if(id==115||id==116||id==122){

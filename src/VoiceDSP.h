@@ -57,8 +57,8 @@ class VoiceDSP {
   air.peak(rate,3400,.9,3*clamp(p.presence,0,1));
   detectorAttack=std::exp(-1/(.025*rate));
   detectorRelease=std::exp(-1/(.140*rate));
-  attack=std::exp(-1/(.010*rate));release=std::exp(-1/(.100*rate));hpCoeff=std::exp(-2*pi*(35.+145.*clamp(p.lowCut,0,1))/rate);
-  lowCutFilter.highpass(rate,35.+145.*clamp(p.lowCut,0,1));
+  attack=std::exp(-1/(.010*rate));release=std::exp(-1/(.100*rate));hpCoeff=std::exp(-2*pi*(35.+165.*clamp(p.lowCut,0,1))/rate);
+  lowCutFilter.highpass(rate,35.+165.*clamp(p.lowCut,0,1));
  }
 public:
  VoiceDSP(){update();}
