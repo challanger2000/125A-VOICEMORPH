@@ -25,8 +25,11 @@ int main(int argc,char** argv){
   assert(off[i].normalized>=0.&&off[i].normalized<=1.);
   for(std::size_t j=i+1;j<on.size();++j)assert(on[j].id!=id);
  }
- assert(std::fabs(on[7].normalized*18.-12.+2.)<1e-10);
+ assert(on[3].id==105&&on[3].normalized==0.);
+ assert(on[7].id==117&&std::fabs(on[7].normalized*18.-12.)<1e-10);
  assert(std::fabs(on[8].normalized*14.-8.+1.)<1e-10);
+ assert(on[7].normalized==off[7].normalized);
+ assert(on[3].normalized==off[3].normalized);
  assert(std::fabs(off[7].normalized*18.-12.)<1e-10);
  assert(std::fabs(off[8].normalized*14.-8.)<1e-10);
  // No changes to gain, global bypass, existing IR settings or automation IDs.
@@ -65,7 +68,7 @@ int main(int argc,char** argv){
  // Sub-controller applies to descendants. Keep the IR command listener scoped
  // to the four buttons, never to the surrounding seven VST3 numeric edits.
  assert(!has(xml,"origin=\"632, 77\" size=\"348, 520\" background-color=\"Panel\" transparent=\"false\" sub-controller"));
- const count=[&](const std::string& needle){
+ const auto count=[&](const std::string& needle){
   std::size_t n=0,at=0;
   while((at=xml.find(needle,at))!=std::string::npos){++n;at+=needle.size();}
   return n;

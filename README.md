@@ -47,8 +47,8 @@ session reopen/PDC/GUI test.
 
 The development editor now has two one-click voice choices in its header:
 **HOLLYWOOD** for a deliberately mild initial combination of existing
-De-Nasal, Chest, Warmth, Grit, Presence, Compression, Low Cut and -2 st pitch /
--1 st formant; **ORIGINAL** returns just these nine parameters to their
+De-Nasal, Chest, Warmth, Presence, Compression and Low Cut, with 0 st Pitch,
+-1 st Formant and no extra Grit; **ORIGINAL** returns just these nine parameters to their
 neutral defaults. This is an *empirical starting preset*, not an
 acoustically verified Hollywood voice-identity converter.
 
@@ -60,3 +60,14 @@ separate macro state, additional DSP, new license functionality or state
 migration is added; the actual settings are recalled with the existing
 project state. Studio One click and editor reopen verification is still
 required.
+
+### User-calibrated voice (private)
+
+The speaker found -2 semitone PITCH audibly artificial and manually returned it
+to 0. HOLLYWOOD therefore preserves the original pitch and disables Grit,
+which added unintended gain at its previous 8% setting. These adjustments
+are starting points for level-matched listening, not certified mic modelling.
+
+A separate private B1/U87/V311 tone IR was prepared from the user's
+commercially obtained IR files. Those source files and derivative WAVs are
+**not** stored in this GitHub repository.
