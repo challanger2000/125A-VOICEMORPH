@@ -152,3 +152,39 @@ sound:
 exercise native Studio One mouse gestures, VSTGUI attachment, DAW automation,
 complete real-project recall, host output telemetry, offline tail behavior
 or human listening. These remain release blockers until independently tested.
+
+## Verified audit build evidence — 2026-10-13
+
+**Commit:** `3e6470f7e795d2dce0f66aa9e37fdcfcb7bddc30`
+**Windows CI:** https://github.com/challanger2000/125A-VOICEMORPH/actions/runs/38433581288
+- Steinberg SDK Validator: **47/47 passed**.
+- Release CTest suite: **31/31 passed**, including newly added
+  `all_gui_controller_processor_bindings` and
+  `isolated_voice_knob_audio_response` (7 VoiceDSP musical controls,
+  direct I/O trims; 44.1 and 48 kHz).
+- State mailbox test now protects all 23 entries rather than 19.
+- Windows VST3 built, C++ callback allocation probe passed, bundle staged.
+- **Zero DSP, preset, GUI layout or sonic changes in this audit commit.**
+
+### Remaining host-facing gaps, not yet a release PASS
+- Input-status feedback: the Processor currently publishes IR READY/ERROR
+  through `outputParameterChanges` after positive-length audio blocks.
+  Its `numSamples<=0` early-return branch handles parameter flush but
+  does not publish status telemetry. A host with no active audio stream
+  may therefore fail to refresh IR status after LOAD/CLEAR until
+  processing resumes. Verify empirically; implement a compliant
+  GUI-message/status path without introducing audio-thread allocations.
+- No test instantiates the real GUI and simulates 20 controller gestures
+  (including defaults), 6 native file buttons, both presets, zoom or
+  editor attach/detach. The CTest UI audit is a **static binding proof**,
+  not GUI functionality proof.
+- Loaded IR filenames and meaningful load-error detail are still absent
+  from the editor. The coded status shows only EMPTY/LOADING/READY/ERROR.
+- The Processor still omits VST3 `getTailSamples()`; Steinberg documents
+  the need to report reverb tails for offline processing. This remains
+  an explicit release blocker; latency samples are separate and MUST
+  NOT be included in the tail estimate.
+- Full VST3 parameter→host automation→processor→audio→project/save state
+  roundtrip and lifecycle tests remain **NOT VERIFIED**.
+- The user's already approved voice timbre must remain unchanged while
+  completing QA and UI/host reliability repairs.
