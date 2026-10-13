@@ -133,9 +133,12 @@ endif()
 # executes the *packaged* VST3 through the actual VST3 hosting loader and
 # exercises Windows HWND attach/focus/detach/reopen. It must run on Windows.
 if(BUILD_VST3 AND WIN32 AND BUILD_TESTING)
+ # Workflow SDK location arrives as a Windows path containing backslashes.
+ # Normalize before creating the test target's source-file argument.
+ file(TO_CMAKE_PATH "${VST3_SDK_ROOT}" VM_SDK_CMAKE_PATH)
  add_executable(test_vm_editor_lifecycle
   tests/test_vm_editor_lifecycle.cpp
-  "${VST3_SDK_ROOT}/public.sdk/source/vst/hosting/module_win32.cpp")
+  "${VM_SDK_CMAKE_PATH}/public.sdk/source/vst/hosting/module_win32.cpp")
  target_link_libraries(test_vm_editor_lifecycle PRIVATE
   sdk_hosting sdk_common base pluginterfaces user32 ole32)
  target_compile_definitions(test_vm_editor_lifecycle PRIVATE
