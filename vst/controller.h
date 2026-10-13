@@ -8,6 +8,8 @@ public:
  static FUnknown* createInstance(void*) {return static_cast<Vst::IEditController*>(new VMController);}
  tresult PLUGIN_API initialize(FUnknown*) SMTG_OVERRIDE;
  IPlugView* PLUGIN_API createView(FIDString name) SMTG_OVERRIDE;
+ VSTGUI::CView* verifyView(VSTGUI::CView*,const VSTGUI::UIAttributes&,
+   const VSTGUI::IUIDescription*,VSTGUI::VST3Editor*) override;
  VSTGUI::IController* createSubController(VSTGUI::UTF8StringPtr name,const VSTGUI::IUIDescription*,VSTGUI::VST3Editor*) override;
  // UI-thread command: transmit selected WAV path to the processor.
  tresult requestIRFile(const std::string& utf8Path,int slot);

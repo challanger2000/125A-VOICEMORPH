@@ -9,6 +9,7 @@
 #include "pluginterfaces/vst/ivstmessage.h"
 #include "vstgui/lib/cfileselector.h"
 #include "vstgui/lib/controls/cbuttons.h"
+#include "vstgui/lib/controls/cslider.h"
 #include "vstgui/lib/cframe.h"
 #include <cstring>
 #include <cmath>
@@ -40,6 +41,19 @@ tresult VMController::requestIRFile(const std::string& utf8Path,int slot){
 }
 
 namespace {
+// VSTGUI's built-in CSliderBase uses deltaX for horizontal controls.
+// Ordinary mouse wheels send deltaY; preserve the existing horizontal
+// gesture and map vertical wheel movement only when deltaX is absent.
+// Every existing slider parameter ID, visual state and editing gesture
+// remains unchanged. This is a GUI-only adjustment.
+class VoiceWheelSlider final : public VSTGUI::CSlider {
+public:
+ explicit VoiceWheelSlider(const VSTGUI::CSlider& source):CSlider(source){}
+ void onMouseWheelEvent(VSTGUI::MouseWheelEvent& event) override {
+  if(event.deltaX==0. && event.deltaY!=0.)event.deltaX=event.deltaY;
+  CSlider::onMouseWheelEvent(event);
+ }
+};
 class VoicePresetButtons final:public VSTGUI::IController {
  Steinberg::VMController* owner;
 public:
@@ -85,6 +99,18 @@ IPlugView* PLUGIN_API VMController::createView(FIDString name){
   return editor;
  }
  return nullptr;
+}
+VSTGUI::CView* VMController::verifyView(VSTGUI::CView* view,
+ const VSTGUI::UIAttributes&,const VSTGUI::IUIDescription*,
+ VSTGUI::VST3Editor*){
+ auto* slider=dynamic_cast<VSTGUI::CSlider*>(view);
+ if(!slider)return view;
+ const int tag=slider->getTag();
+ if(tag<kInput||tag>kPreampPredelay||tag==kBypass||tag==kB1Correction||
+    tag==kMicPosition||tag==kMicPredelay||tag==kPreampPredelay)return view;
+ auto* adapted=new VoiceWheelSlider(*slider);
+ slider->forget();
+ return adapted;
 }
 VSTGUI::IController* VMController::createSubController(VSTGUI::UTF8StringPtr name,
  const VSTGUI::IUIDescription*,VSTGUI::VST3Editor* editor){
