@@ -28,7 +28,15 @@ void testMonoToStereo(){
   assert(std::isfinite(l)&&std::isfinite(r));
   const Sample outL=vm::floatToAudio<Sample>(l);
   const Sample outR=vm::floatToAudio<Sample>(r);
-  if(n>310&&n<600){
+  // The processor now has three fixed 128-sample IR slots (MIC,
+  // PREAMP, REVERB). The old 256-sample expectation masked PDC changes.
+  const int latency=static_cast<int>(chain.latencySamples());
+  assert(latency==384);
+  if(n<latency){
+   assert(std::fabs(outL)<.0001);
+   assert(std::fabs(outR)<.0001);
+  }
+  if(n>latency+30&&n<600){
    assert(std::fabs(outL-.12)<.002);
    assert(std::fabs(outR-.072)<.002);
   }
