@@ -4,6 +4,7 @@
 #include "ParameterPointCursor.h"
 #include "VoiceSampleFormat.h"
 #include "VoiceBusLayout.h"
+#include "ReverbMixLaw.h"
 #include "pluginterfaces/vst/vstspeaker.h"
 #include "base/source/fstreamer.h"
 #include "pluginterfaces/base/ibstream.h"
@@ -68,9 +69,9 @@ void VMProcessor::irWorkerLoop(){
     vm::WaveIR wave;
     if(vm::decodeWave(stored->data(),stored->size(),wave,error,vm::kMaxEmbeddedIRBytes)){
      prepared=std::make_unique<vm::StereoIRStage>();
-     if(!prepared->prepare(wave,sr)){error="Cannot prepare embedded IR";prepared.reset();}
+     if(!prepared->prepare(wave,sr,0,slot==2)){error="Cannot prepare embedded IR";prepared.reset();}
     }
-   }else prepared=vm::IRFileBuilder::load(path,sr,0,error,&source);
+   }else prepared=vm::IRFileBuilder::load(path,sr,0,error,&source,slot==2);
   }else error="Unsupported host sample rate";
   {
    std::lock_guard<std::mutex> lock(irJobMutex);
@@ -143,7 +144,7 @@ void VMProcessor::apply() noexcept {
  preampIR.setMix(params[kPreampMix-kInput]);
  preampIR.setWetLevel(params[kPreampLevel-kInput]*4.f);
  preampIR.setPredelayNormalized(params[kPreampPredelay-kInput]);
- reverbIR.setMix(params[kReverbMix-kInput]);
+ reverbIR.setMix(vm::reverbWetMix(params[kReverbMix-kInput]));
  reverbIR.setWetLevel(params[kReverbLevel-kInput]*4.f);
  microphoneIR.setPredelayNormalized(params[kMicPredelay-kInput]);
  reverbIR.setPredelayNormalized(params[kReverbPredelay-kInput]);
@@ -272,7 +273,7 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
      livePreamp->setPredelayNormalized(params[kPreampPredelay-kInput]);
     }
     if(liveRev){
-    liveRev->setMix(params[kReverbMix-kInput]);
+    liveRev->setMix(vm::reverbWetMix(params[kReverbMix-kInput]));
     liveRev->setWetLevel(params[kReverbLevel-kInput]*4.f);
     liveRev->setPredelayNormalized(params[kReverbPredelay-kInput]);
    }
@@ -292,7 +293,7 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
  preamp->setMix(params[kPreampMix-kInput]);
  preamp->setWetLevel(params[kPreampLevel-kInput]*4.f);
  preamp->setPredelayNormalized(params[kPreampPredelay-kInput]);
- rev->setMix(params[kReverbMix-kInput]);
+ rev->setMix(vm::reverbWetMix(params[kReverbMix-kInput]));
  rev->setWetLevel(params[kReverbLevel-kInput]*4.f);
  rev->setPredelayNormalized(params[kReverbPredelay-kInput]);
  if(data.numSamples<=0){

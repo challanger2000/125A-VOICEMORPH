@@ -15,7 +15,7 @@ class FFTStereoIR {
  std::array<PartitionedIR,4> path_;
  bool loaded_=false;
 public:
- bool prepare(const WaveIR& ir,double hostRate) {
+ bool prepare(const WaveIR& ir,double hostRate,bool reverbEnergyNormalize=false) {
   if(ir.channels!=1&&ir.channels!=2&&ir.channels!=4)return false;
   if(ir.sampleRate==0||hostRate<8000||hostRate>384000)return false;
   if(ir.frames()==0||ir.interleaved.size()!=ir.frames()*ir.channels)return false;
@@ -33,8 +33,25 @@ public:
     taps[2][n]=source.interleaved[n*4+3];
    }
   }
+  // Optional REVERB-ONLY calibration, computed after SRC so behavior stays
+  // consistent at the actual host sample rate. The L2 norm of an impulse
+  // response is its RMS gain for white, unit-variance input. For true-stereo
+  // inputs the sum of the two input->output path norms is a conservative
+  // bound that also accommodates correlated L/R speech. Never amplify a
+  // quiet IR and never change MIC/PREAMP transfer functions.
+  if(reverbEnergyNormalize){
+   std::array<double,4> energy{};
+   for(int channel=0;channel<4;++channel)
+    for(float sample:taps[channel])
+     energy[channel]+=double(sample)*double(sample);
+   const double left=std::sqrt(energy[0])+std::sqrt(energy[2]);
+   const double right=std::sqrt(energy[1])+std::sqrt(energy[3]);
+   const double norm=std::max(1.0,std::max(left,right));
+   if(!std::isfinite(norm))return false;
+   const float scale=static_cast<float>(1.0/norm);
+   for(auto& channel:taps)for(float& sample:channel)sample*=scale;
+  }
   // Validate completely before modifying any DSP state.
-
   for(const auto& channel:taps)
    for(float sample:channel)if(!std::isfinite(sample))return false;
   // Only validated IRs reach the prepared convolution engines.

@@ -79,3 +79,23 @@ commercially obtained IR files. Those source files and derivative WAVs are
 The editor now numbers the live chain 01 INPUT → 02 B1 CORRECTION → 03 MIC IR → 04 PREAMP IR → 05 VOICE → 06 REVERB IR → 07 OUTPUT, with L/R input/output peak readouts and per-block clipping indication. Input and output gain are at their corresponding ends. Optional MIC POST explicitly moves MIC behind VOICE for compatibility with prior projects. B1 EQ is **documented-shape and empirically approximated** from the Studio Projects B1 response described by Bonedo, not a calibrated measurement. See [signal-chain evidence](docs/B1-SIGNAL-CHAIN.md).
 
 Project-state v8 adds an independently embedded preamp WAV IR without renumbering existing VST3 parameter IDs. Old saved sessions leave the new B1 correction OFF. Fixed three-slot IR latency is 384 samples plus spectral engine delay; DAW PDC and v1-v7 recall remain subject to real-host verification. Build/CTests do not constitute final plugin QA.
+
+## Reverb MIX sensitivity correction (development)
+
+A reported 1% Reverb MIX was already very prominent with some uncalibrated
+third-party WAV room IRs. Previously the FFT convolver used the original
+IR amplitude verbatim, and the linear 0..100% MIX had no low-range
+resolution. **The original IR is still stored unchanged in portable project
+state.** Only the prepared REVERB convolution taps receive a bounded
+energy-only attenuation, measured in the actual host sample-rate domain.
+No boost is applied, and MIC/PREAMP coloration IRs are untouched.
+
+MIX now uses `normalized^2` as a musically gradual wet law, with the
+endpoints 0% = strictly dry, 100% = all wet. For 1% position, the wet
+coefficient is 0.0001 (-80 dB relative to standardized wet before LEVEL).
+The 1% control value is not 1% linear wet amplitude. LEVEL still has
+its separate 0..400% scalar. Earlier development-version sessions can
+sound less wet when loaded in this update: this is an intentional
+correction to the existing parameter's behavior, not a new parameter ID.
+The change is verified by deterministic high-energy WAV fixtures and
+requires fresh Studio One listening with the actual user IR.

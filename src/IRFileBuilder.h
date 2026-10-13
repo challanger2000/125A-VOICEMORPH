@@ -13,7 +13,8 @@ class IRFileBuilder {
 public:
  static std::unique_ptr<StereoIRStage> load(
   const std::string& path,double sampleRate,std::size_t predelay,
-  std::string& error,SharedIRSource* originalBytes=nullptr) {
+  std::string& error,SharedIRSource* originalBytes=nullptr,
+  bool reverbEnergyNormalize=false) {
   if(!std::isfinite(sampleRate)||sampleRate<8000.||sampleRate>384000.){
    error="Unsupported host sample rate";return {};
   }
@@ -24,7 +25,7 @@ public:
   SharedIRSource source;
   if(!loadWaveIRFile(path,wave,error,kMaxEmbeddedIRBytes,originalBytes?&source:nullptr))return {};
   auto stage=std::make_unique<StereoIRStage>();
-  if(!stage->prepare(wave,sampleRate,predelay)){
+  if(!stage->prepare(wave,sampleRate,predelay,reverbEnergyNormalize)){
    error="Cannot prepare IR for host sample rate";return {};
   }
   if(originalBytes)*originalBytes=std::move(source);

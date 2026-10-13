@@ -15,10 +15,11 @@ class StereoIRStage {
  float mix_=1.f,level_=1.f;
  bool active_=false;
 public:
- bool prepare(const WaveIR& ir,double sr,std::size_t predelaySamples=0) {
+ bool prepare(const WaveIR& ir,double sr,std::size_t predelaySamples=0,
+              bool reverbEnergyNormalize=false) {
   if(sr<8000||sr>384000||predelaySamples>static_cast<std::size_t>(sr*2))return false;
   FFTStereoIR replacement;
-  if(!replacement.prepare(ir,sr))return false;
+  if(!replacement.prepare(ir,sr,reverbEnergyNormalize))return false;
   const std::size_t latency=replacement.latencySamples();
   std::array<std::vector<float>,2> nextDry, nextWet;
   for(int c=0;c<2;++c) {
