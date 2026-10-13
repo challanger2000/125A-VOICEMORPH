@@ -356,3 +356,18 @@ Windows build: https://github.com/challanger2000/125A-VOICEMORPH/actions/runs/38
 The GitHub Windows runner provided a 1024×728-pixel work area. Standard `WS_OVERLAPPEDWINDOW` max-track behavior originally capped the test-host native client at about **1028×749** despite the plugin requesting a 1500×922 zoomed view. Right/bottom controls were unclickable because they were outside the actual hosting HWND, not because the plugin's hit rectangles were malformed. The native host now raises WM_GETMINMAXINFO ptMaxTrackSize to 4096×4096, verifies requested vs actual client size, and pans the oversized host window so each tested click is on-screen. The prior failure is retained as evidence; not counted as a plugin regression.
 
 **Still NOT VERIFIED by this test:** mouse wheel increments, double-click / numeric CTextEdit keyboard entry, IR file selection via each native dialog, filename feedback, empty/invalid WAV lifecycle with transport stopped, full automation and project reload in actual Studio One, and visual 150% screenshot acceptability on the user's monitor. This is a significant native GUI test gate PASS, but not yet a FULL Studio One / FINAL approval.
+
+## Native wheel and numeric typing: verified GUI regression
+
+Source: 1b818bd319dea354760e024f27ca94eef36f81db.
+Windows VST3: https://github.com/challanger2000/125A-VOICEMORPH/actions/runs/38451263172
+**Verified actual packaged VST3:**
+- Native vertical WM_MOUSEWHEEL drove all 18/18 horizontal GUI slider parameters at 100%, and again 18/18 at 150%. The earlier 100%-INPUT failure is fixed.
+- Native Win32 EDIT controls were opened by clicks and entered using WM_CHAR, confirmed with Enter. All 18/18 text value conversions reached the real Controller at 100% and again 18/18 at 150%. The normal physical-unit display strings include dB, %, Hz, st and ms.
+- Existing 18 slider drag and Ctrl+left reset, both switches, both presets, 20 editor opens/reopens and 100/150% geometry all remained PASS.
+- Steinberg 47/47, unit 32/32 and real-time allocation probe PASS.
+- **Root cause:** VSTGUI CSliderBase::onMouseWheelEvent reads deltaX on horizontal sliders. Standard Windows mouse wheels send deltaY. GUI-only adapted CSlider maps deltaY to deltaX if deltaX is absent, preserving actual horizontal wheel motion.
+- **DSP, preset sound, normalized parameter IDs, and serialization not changed.**
+
+**Pending integration:** a new native VST3 v8 session test has been prepared to validate exact binary save/reload of 23 parameters with three original source WAV IRs. It must pass the next build before being counted as verified.
+**Remaining separate release gates:** actual IR file chooser dialogs, no-audio IR status and displayed filename, visual Studio One screenshots, Studio One real project/automation recall and final user acceptance.

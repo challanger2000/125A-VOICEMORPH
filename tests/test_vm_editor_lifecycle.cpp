@@ -14,12 +14,16 @@
 #include "pluginterfaces/vst/ivsteditcontroller.h"
 #include "pluginterfaces/vst/ivstmessage.h"
 #include "pluginterfaces/vst/vsttypes.h"
+#include "public.sdk/source/common/memorystream.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <vector>
+#include <cstdint>
+#include <cstring>
 using namespace Steinberg;
 using namespace Steinberg::Vst;
 using namespace VST3::Hosting;
@@ -478,6 +482,91 @@ int exerciseNativeScalingAndControls(IPlugView* view,HWND hwnd,IEditController* 
  return 0;
 }
 
+
+// Real compiled VST3 processor + controller project-state integration.
+// Build a version-8 state with ALL 23 normalized values and three original
+// embedded WAVs; verify exact binary export, replay and controller recall.
+// The resulting source WAVs never need their original disk paths.
+int checkRealProjectRecall(IComponent* component,IEditController* controller){
+ if(!component||!controller)return 120;
+ const std::vector<std::uint8_t> wav{
+  'R','I','F','F',38,0,0,0,'W','A','V','E',
+  'f','m','t',' ',16,0,0,0,1,0,1,0,0x80,0xbb,0,0,0,0x77,1,0,2,0,16,0,
+  'd','a','t','a',2,0,0,0,0xff,0x7f
+ };
+ auto checksum=[&](const std::vector<std::uint8_t>& b){
+  std::uint32_t crc=0xffffffffu;
+  for(auto c:b){
+   crc^=c;
+   for(int i=0;i<8;++i)
+    crc=(crc>>1)^(0xedb88320u&static_cast<std::uint32_t>(-static_cast<std::int32_t>(crc&1u)));
+  }
+  return ~crc;
+ };
+ std::vector<char> bytes;
+ auto add32=[&](std::uint32_t v){
+  for(int i=0;i<4;++i)bytes.push_back(static_cast<char>((v>>(i*8))&255));
+ };
+ auto addFloat=[&](float f){
+  std::uint32_t v=0;std::memcpy(&v,&f,sizeof(v));add32(v);
+ };
+ add32(8);
+ std::array<float,23> expected{};
+ for(int i=0;i<23;++i){
+  expected[i]=.08f+static_cast<float>(i)*.035f;
+  // Preserve proper discrete flags while exercising OFF/ON project recall.
+  if(i==9)expected[i]=1.f; // Voice bypass
+  if(i==19)expected[i]=0.f; // B1 EQ
+  addFloat(expected[i]);
+ }
+ auto addPath=[&](){add32(0);}; // source filename deliberately absent
+ auto addWav=[&](){
+  add32(static_cast<std::uint32_t>(wav.size()));
+  add32(checksum(wav));
+  bytes.insert(bytes.end(),wav.begin(),wav.end());
+ };
+ addPath();addPath(); // v5 MIC and REVERB legacy path fields
+ addWav();addWav();   // v7 full original source WAV payloads
+ addPath();addWav();  // v8 PREAMP path and original WAV payload
+ Steinberg::MemoryStream componentInput(bytes.data(),static_cast<Steinberg::TSize>(bytes.size()));
+ if(component->setState(&componentInput)!=kResultOk){
+  std::cerr<<"VST3 v8 embedded three-IR component setState FAIL\n";return 121;
+ }
+ Steinberg::MemoryStream controllerInput(bytes.data(),static_cast<Steinberg::TSize>(bytes.size()));
+ if(controller->setComponentState(&controllerInput)!=kResultOk){
+  std::cerr<<"VST3 v8 controller setComponentState FAIL\n";return 122;
+ }
+ for(int i=0;i<23;++i){
+  if(std::fabs(controller->getParamNormalized(static_cast<ParamID>(100+i))-expected[i])>1e-6){
+   std::cerr<<"VST3 v8 controller recall differs at parameter "<<100+i<<"\n";
+   return 123;
+  }
+ }
+ Steinberg::MemoryStream saved;
+ if(component->getState(&saved)!=kResultOk||
+    saved.getSize()!=static_cast<Steinberg::TSize>(bytes.size())||
+    std::memcmp(saved.getData(),bytes.data(),bytes.size())!=0){
+  std::cerr<<"VST3 v8 full source WAV + 23-parameter binary save differs\n";
+  return 124;
+ }
+ // A new "project open" restores after an unrelated previous state,
+ // including serialized originals that are not present as physical files.
+ Steinberg::MemoryStream restored(saved.getData(),saved.getSize());
+ if(component->setState(&restored)!=kResultOk)return 125;
+ Steinberg::MemoryStream controllerRestored(saved.getData(),saved.getSize());
+ if(controller->setComponentState(&controllerRestored)!=kResultOk)return 126;
+ Steinberg::MemoryStream savedAgain;
+ if(component->getState(&savedAgain)!=kResultOk||
+    savedAgain.getSize()!=saved.getSize()||
+    std::memcmp(savedAgain.getData(),saved.getData(),saved.getSize())!=0){
+  std::cerr<<"VST3 v8 second save after project reload FAIL\n";
+  return 127;
+ }
+ std::cout<<"Actual VST3 v8: all 23 parameters + three embedded original WAVs"
+          <<" saved, recalled and binary-equivalent resaved PASS\n";
+ return 0;
+}
+
 int probe(const std::filesystem::path& path){
  std::string error;
  auto module=Module::create(path.u8string(),error);
@@ -569,6 +658,10 @@ int probe(const std::filesystem::path& path){
    view->release();
    if(IsWindow(window)){std::cerr<<"Window remained after destroy\n";return 15;}
    std::cout<<"Editor attach/detach cycle "<<(cycle+1)<<"/"<<kCycles<<" PASS\n";
+  }
+  if(const int result=checkRealProjectRecall(component.get(),controller)){
+   std::cerr<<"Real VST3 embedded project recall failed "<<result<<"\n";
+   return result;
   }
   cc->disconnect(cp);cp->disconnect(cc);
   cp->release();cc->release();
