@@ -8,6 +8,7 @@
 #include "public.sdk/source/vst/hosting/hostclasses.h"
 #include "base/source/fobject.h"
 #include "pluginterfaces/gui/iplugview.h"
+#include "pluginterfaces/gui/iplugviewcontentscalesupport.h"
 #include "pluginterfaces/vst/ivstcomponent.h"
 #include "pluginterfaces/vst/ivstaudioprocessor.h"
 #include "pluginterfaces/vst/ivsteditcontroller.h"
@@ -177,6 +178,116 @@ int checkRealProcessingLifecycle(IComponent* component){
  return 0;
 }
 
+
+// Native interaction gate: dispatch real Win32 button/motion events to
+// the VSTGUI HWND, then read actual VST3 controller parameter state.
+// Coordinates are global *inside the 1000x615 view* and were independently
+// traced from the authoritative UIDESC nested-container positions.
+// This is not a simulated controller->setParamNormalized() test.
+struct Widget {ParamID id;int x,y,w,h;};
+constexpr std::array<Widget,18> kGuiSliders{{
+ {100,65,148,83,17},{101,861,501,51,17},
+ {102,28,348,200,17},{103,344,348,200,17},
+ {104,660,348,200,17},{105,28,396,200,17},
+ {106,344,396,200,17},{107,660,396,200,17},
+ {108,28,444,200,17},{110,455,193,153,17},
+ {111,455,227,153,17},{112,28,558,112,17},
+ {113,235,558,112,17},{116,442,558,112,17},
+ {117,344,444,200,17},{118,660,444,200,17},
+ {120,751,193,153,17},{121,751,227,153,17}
+}};
+HWND hitTarget(HWND host,int& x,int& y) {
+ POINT client{x,y};
+ const HWND target=ChildWindowFromPointEx(host,client,CWP_SKIPINVISIBLE|CWP_SKIPDISABLED);
+ if(target && target!=host){
+  POINT screen=client;ClientToScreen(host,&screen);
+  ScreenToClient(target,&screen);
+  x=screen.x;y=screen.y;
+  return target;
+ }
+ return host;
+}
+void mouseAction(HWND host,int x,int y,bool down,WPARAM modifiers=0) {
+ HWND target=hitTarget(host,x,y);
+ SendMessageW(target,down?WM_LBUTTONDOWN:WM_LBUTTONUP,
+              (down?MK_LBUTTON:0)|modifiers,MAKELPARAM(x,y));
+ pump();
+}
+void dragNative(HWND host,int x0,int y0,int x1,int y1) {
+ int x=x0,y=y0;
+ HWND target=hitTarget(host,x,y);
+ SetForegroundWindow(host);SetFocus(target);
+ SendMessageW(target,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(x,y));
+ pump();
+ POINT end{x1,y1};ClientToScreen(host,&end);ScreenToClient(target,&end);
+ SendMessageW(target,WM_MOUSEMOVE,MK_LBUTTON,MAKELPARAM(end.x,end.y));
+ pump();
+ SendMessageW(target,WM_LBUTTONUP,0,MAKELPARAM(end.x,end.y));
+ pump();
+}
+int exerciseNativeMouse(HWND hwnd,IEditController* controller,double scale){
+ // A native SetContentScaleFactor must adjust both editor geometry and
+ // the mouse hit coordinates, not merely paint a magnified screenshot.
+ for(const auto& w:kGuiSliders){
+  if(controller->setParamNormalized(w.id,.14)!=kResultTrue)return 90;
+  const auto before=controller->getParamNormalized(w.id);
+  const auto px=[&](int a){return int(std::lround(a*scale));};
+  const int y=px(w.y+w.h/2),xa=px(w.x+w.w/5),xb=px(w.x+4*w.w/5);
+  dragNative(hwnd,xa,y,xb,y);
+  const auto after=controller->getParamNormalized(w.id);
+  if(!(std::isfinite(after)&&after>=0.&&after<=1.&&std::fabs(after-before)>.05)){
+   std::cerr<<"Native VSTGUI drag FAIL parameter "<<w.id
+            <<" scale "<<scale<<" before "<<before<<" after "<<after<<"\n";
+   return 91;
+  }
+  std::cout<<"Native mouse slider "<<w.id<<" @ "<<scale<<"x PASS\n";
+ }
+ // The VOICE BYPASS switch must not be globally mapped to the plugin output.
+ for(const auto& b:std::array<Widget,2>{{{109,797,286,171,28},{119,256,199,126,29}}}){
+  const double before=controller->getParamNormalized(b.id);
+  const int x=int(std::lround((b.x+b.w/2)*scale));
+  const int y=int(std::lround((b.y+b.h/2)*scale));
+  mouseAction(hwnd,x,y,true);mouseAction(hwnd,x,y,false);
+  const double after=controller->getParamNormalized(b.id);
+  if(!(std::fabs(after-before)>.5)){
+   std::cerr<<"Native VSTGUI switch FAIL "<<b.id<<" scale "<<scale
+            <<" before "<<before<<" after "<<after<<"\n";return 92;
+  }
+ }
+ return 0;
+}
+int exerciseNativeScalingAndControls(IPlugView* view,HWND hwnd,IEditController* controller){
+ // Before any scale change, the GUI must respond to physical input.
+ if(const int fail=exerciseNativeMouse(hwnd,controller,1.))return fail;
+ IPlugViewContentScaleSupport* support=nullptr;
+ const bool available=view->queryInterface(IPlugViewContentScaleSupport::iid,
+     reinterpret_cast<void**>(&support))==kResultTrue&&support;
+ if(!available){std::cerr<<"VST3 content-scale interface missing\n";return 93;}
+ ViewRect before{};
+ if(view->getSize(&before)!=kResultTrue){support->release();return 94;}
+ if(support->setContentScaleFactor(1.5f)!=kResultTrue){
+  support->release();std::cerr<<"150 percent scaling rejected\n";return 95;
+ }
+ pump();
+ ViewRect after{};
+ if(view->getSize(&after)!=kResultTrue ||
+    after.right-after.left<int((before.right-before.left)*1.4) ||
+    after.bottom-after.top<int((before.bottom-before.top)*1.4)){
+  support->release();
+  std::cerr<<"150 percent scaling geometry NOT applied\n";return 96;
+ }
+ if(const int result=exerciseNativeMouse(hwnd,controller,1.5)){
+  support->release();return result;
+ }
+ if(support->setContentScaleFactor(1.f)!=kResultTrue){
+  support->release();return 97;
+ }
+ pump();
+ support->release();
+ std::cout<<"Native 100/150/100 percent scaling and 18 controls + switches PASS\n";
+ return 0;
+}
+
 int probe(const std::filesystem::path& path){
  std::string error;
  auto module=Module::create(path.u8string(),error);
@@ -254,6 +365,12 @@ int probe(const std::filesystem::path& path){
    }
    ShowWindow(window,SW_SHOWNA);UpdateWindow(window);pump();
    view->onFocus(true);view->onFocus(false);pump();
+   if(cycle==0){
+    if(const int result=exerciseNativeScalingAndControls(view,window,controller)){
+     std::cerr<<"GUI actual mouse/scale test failure: "<<result<<"\n";
+     return result;
+    }
+   }
    if(view->removed()!=kResultTrue||view->setFrame(nullptr)!=kResultTrue){
     std::cerr<<"remove/setFrame cleanup FAIL cycle "<<cycle<<"\n";return 14;
    }
