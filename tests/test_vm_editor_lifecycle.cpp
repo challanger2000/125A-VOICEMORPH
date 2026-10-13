@@ -14,6 +14,8 @@
 #include "pluginterfaces/vst/ivstmessage.h"
 #include "pluginterfaces/vst/vsttypes.h"
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <filesystem>
 #include <iostream>
 #include <string>
@@ -57,6 +59,83 @@ public:
  END_DEFINE_INTERFACES(FObject)
  REFCOUNT_METHODS(FObject)
 };
+
+struct RequiredParam {
+ ParamID id;
+ ParamValue defaultValue;
+};
+int checkRealControllerParameters(IEditController* controller){
+ if(!controller)return 70;
+ const std::array<RequiredParam,20> params{{
+  {100,.5},{101,.5},{102,0.},{103,0.},{104,0.},{105,0.},
+  {106,0.},{107,0.},{108,0.},{109,0.},{110,1.},
+  {111,.25},{112,.3},{113,.25},{116,0.},
+  {117,2./3.},{118,4./7.},{119,1.},{120,1.},{121,.25}
+ }};
+ auto locate=[&](ParamID id,ParameterInfo& found)->bool{
+  const auto total=controller->getParameterCount();
+  for(int32 idx=0;idx<total;++idx){
+   ParameterInfo candidate{};
+   if(controller->getParameterInfo(idx,candidate)!=kResultTrue)return false;
+   if(candidate.id==id){found=candidate;return true;}
+  }
+  return false;
+ };
+ for(const auto& spec:params){
+  ParameterInfo info{};
+  if(!locate(spec.id,info) ||
+     !(info.flags&ParameterInfo::kCanAutomate) ||
+     (info.flags&ParameterInfo::kIsReadOnly)){
+   std::cerr<<"Active parameter missing/disabled ID "<<spec.id<<"\n";return 71;
+  }
+  if(std::fabs(info.defaultNormalized-spec.defaultValue)>1e-5 ||
+     std::fabs(controller->getParamNormalized(spec.id)-spec.defaultValue)>1e-5){
+   std::cerr<<"Parameter default mismatch ID "<<spec.id<<"\n";return 72;
+  }
+  for(const double v:{0.,.25,.5,.75,1.}){
+   if((spec.id==109||spec.id==119) && v!=0. && v!=1.)continue;
+   if(controller->setParamNormalized(spec.id,v)!=kResultTrue ||
+      std::fabs(controller->getParamNormalized(spec.id)-v)>1e-6){
+    std::cerr<<"Controller value roundtrip FAIL ID "<<spec.id<<" at "<<v<<"\n";
+    return 73;
+   }
+   TChar display[128]{};
+   if(controller->getParamStringByValue(spec.id,v,display)!=kResultTrue ||
+      display[0]==0){
+    std::cerr<<"VST3 display text FAIL ID "<<spec.id<<"\n";return 74;
+   }
+   ParamValue decoded=-1.;
+   if(controller->getParamValueByString(spec.id,display,decoded)!=kResultTrue ||
+      !std::isfinite(decoded) ||
+      std::fabs(decoded-v)>.015){
+    std::cerr<<"VST3 display/parse mismatch ID "<<spec.id
+             <<" at normalized "<<v<<", returned "<<decoded<<"\n";
+    return 75;
+   }
+  }
+  if(controller->setParamNormalized(spec.id,spec.defaultValue)!=kResultTrue)
+   return 76;
+ }
+ for(ParamID id:{114u,115u,122u}){
+  ParameterInfo legacy{};
+  if(!locate(id,legacy)||(legacy.flags&ParameterInfo::kCanAutomate)){
+   std::cerr<<"Retired parameter incorrectly automatable ID "<<id<<"\n";
+   return 77;
+  }
+ }
+ for(ParamID id:{200u,201u,202u,203u,204u,205u,206u,207u,208u,209u,210u,211u}){
+  ParameterInfo info{};
+  if(!locate(id,info)||!(info.flags&ParameterInfo::kIsReadOnly) ||
+     (info.flags&ParameterInfo::kCanAutomate)){
+   std::cerr<<"Read-only meter or IR status flag FAIL ID "<<id<<"\n";
+   return 78;
+  }
+ }
+ std::cout<<"Actual VST3 Controller: 18 continuous x5 plus 2 binary x2,"
+          <<" text display/parse, 3 legacy and 12 read-only flags PASS\n";
+ return 0;
+}
+
 int probe(const std::filesystem::path& path){
  std::string error;
  auto module=Module::create(path.u8string(),error);
@@ -85,6 +164,11 @@ int probe(const std::filesystem::path& path){
   IEditController* controller=created.take();
   if(controller->initialize(&host)!=kResultOk){
    controller->release();component->terminate();return 7;
+  }
+  if(const int result=checkRealControllerParameters(controller)){
+   std::cerr<<"Real compiled VST3 controller audit failed: "<<result<<"\n";
+   controller->terminate();controller->release();component->terminate();
+   return result;
   }
   IConnectionPoint* cp=nullptr;
   IConnectionPoint* cc=nullptr;
