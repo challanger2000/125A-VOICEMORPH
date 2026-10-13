@@ -88,7 +88,7 @@ int checkRealControllerParameters(IEditController* controller){
      (info.flags&ParameterInfo::kIsReadOnly)){
    std::cerr<<"Active parameter missing/disabled ID "<<spec.id<<"\n";return 71;
   }
-  if(std::fabs(info.defaultNormalized-spec.defaultValue)>1e-5 ||
+  if(std::fabs(info.defaultNormalizedValue-spec.defaultValue)>1e-5 ||
      std::fabs(controller->getParamNormalized(spec.id)-spec.defaultValue)>1e-5){
    std::cerr<<"Parameter default mismatch ID "<<spec.id<<"\n";return 72;
   }
