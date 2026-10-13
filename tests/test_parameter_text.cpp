@@ -7,13 +7,13 @@
 #include <string>
 int main(){
  constexpr std::array<double,8> values{{0.,.1,.25,.33,.5,.6666666667,.75,1.}};
- for(int id=100;id<=118;++id){
+ for(int id=100;id<=122;++id){
   for(double n:values){
    char label[48]{};
    assert(vm::formatVoiceControl(id,n,label,sizeof(label)));
    double restored=-99.;
    assert(vm::parseVoiceControl(id,label,restored));
-   if(id==109||id==114)assert(restored==(n<.5?0.:1.));
+   if(id==109||id==114||id==119)assert(restored==(n<.5?0.:1.));
    else assert(std::fabs(n-restored)<.015);
   }
  }
@@ -60,6 +60,11 @@ int main(){
  valid(111,"200 %",.5);
  valid(116,"125 ms",.0625);
  valid(114,"POST",1.);
+ valid(119,"ON",1.);
+ valid(119,"OFF",0.);
+ valid(120,"60 %",.6);
+ valid(121,"200 %",.5);
+ valid(122,"150 ms",.075);
  valid(109,"on",1.);
  valid(109,"OFF",0.);
  const auto invalid=[](int id,const char* s){

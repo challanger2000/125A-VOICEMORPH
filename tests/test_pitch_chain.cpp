@@ -18,19 +18,19 @@ int main(){
  assert(latency>0&&latency<12000);
  vm::FixedLatencyIRChain chain;
  chain.preparePitchLatency(static_cast<std::size_t>(latency));
- assert(chain.latencySamples()==static_cast<std::size_t>(latency)+256);
+ assert(chain.latencySamples()==static_cast<std::size_t>(latency)+384);
  vm::VoiceDSP lDSP,rDSP;
  lDSP.prepare(sr);rDSP.prepare(sr);
  // Neutral spectrum path is an exactly delayed copy, including opposite
  // channel polarity; switching either IR slot off does not change latency.
  for(int mode=0;mode<2;++mode){
   chain.reset();spectral.reset();lDSP.prepare(sr);rDSP.prepare(sr);
-  for(int n=0;n<latency+300;++n){
+  for(int n=0;n<latency+450;++n){
    float l=0,r=0;
    chain.process(n==0?1.f:0.f,n==0?-.25f:0.f,l,r,lDSP,rDSP,
                  nullptr,nullptr,true,mode==1,&spectral);
    assert(std::isfinite(l)&&std::isfinite(r));
-   const float expected=n==latency+256?1.f:0.f;
+   const float expected=n==latency+384?1.f:0.f;
    assert(std::fabs(l-expected)<.0001f);
    assert(std::fabs(r+expected*.25f)<.0001f);
   }
@@ -64,19 +64,19 @@ int main(){
   float l=0,r=0;
   chain.process(n==0?1.f:0.f,0.f,l,r,lDSP,rDSP,nullptr,nullptr,true,true,&spectral);
   assert(std::isfinite(l)&&std::isfinite(r));
-  assert(std::fabs(l-(n==latency+256?1.f:0.f))<.0001f);
+  assert(std::fabs(l-(n==latency+384?1.f:0.f))<.0001f);
  }
  // If a host presents a rate beyond the spectral engine's design,
- // retain a correct 256-sample IR-only fallback rather than stale PDC.
+ // retain a correct 384-sample IR-only fallback rather than stale PDC.
  spectral.disable();
  chain.preparePitchLatency(static_cast<std::size_t>(spectral.latencySamples()));
- assert(chain.latencySamples()==256);
+ assert(chain.latencySamples()==384);
  lDSP.prepare(sr);rDSP.prepare(sr);
  for(int n=0;n<512;++n){
   float l=0.f,r=0.f;
   chain.process(n==0?1.f:0.f,0.f,l,r,lDSP,rDSP,
                 nullptr,nullptr,true,false,&spectral);
-  assert(std::fabs(l-(n==256?1.f:0.f))<.0001f);
+  assert(std::fabs(l-(n==384?1.f:0.f))<.0001f);
   assert(std::fabs(r)<.0001f);
  }
  std::cout<<"Integrated pitch and formant host chain PASS, pitch "<<f

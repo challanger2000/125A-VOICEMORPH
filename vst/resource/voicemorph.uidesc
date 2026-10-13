@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <vstgui-ui-description version="1">
- <colors><color name="Panel" rgba="#212a35ff"/><color name="Field" rgba="#101721ff"/><color name="Outline" rgba="#526378ff"/><color name="Accent" rgba="#79c4efff"/></colors>
- <control-tags><control-tag name="P100" tag="100"/>
+<colors><color name="Panel" rgba="#212a35ff"/><color name="Field" rgba="#101721ff"/><color name="Outline" rgba="#526378ff"/><color name="Accent" rgba="#79c4efff"/></colors>
+<control-tags><control-tag name="P100" tag="100"/>
 <control-tag name="P101" tag="101"/>
 <control-tag name="P102" tag="102"/>
 <control-tag name="P103" tag="103"/>
@@ -20,106 +20,116 @@
 <control-tag name="P116" tag="116"/>
 <control-tag name="P117" tag="117"/>
 <control-tag name="P118" tag="118"/>
+<control-tag name="P119" tag="119"/>
+<control-tag name="P120" tag="120"/>
+<control-tag name="P121" tag="121"/>
+<control-tag name="P122" tag="122"/>
 <control-tag name="Hollywood" tag="1010"/>
 <control-tag name="OriginalVoice" tag="1011"/>
 <control-tag name="LoadMic" tag="1000"/>
 <control-tag name="LoadRev" tag="1001"/>
 <control-tag name="ClearMic" tag="1002"/>
 <control-tag name="ClearRev" tag="1003"/>
+<control-tag name="LoadPreamp" tag="1004"/>
+<control-tag name="ClearPreamp" tag="1005"/>
+<control-tag name="InputPeakL" tag="200"/>
+<control-tag name="InputPeakR" tag="201"/>
+<control-tag name="OutputPeakL" tag="202"/>
+<control-tag name="OutputPeakR" tag="203"/>
+<control-tag name="MicStatus" tag="204"/>
+<control-tag name="RevStatus" tag="205"/>
 <control-tag name="MicError" tag="206"/>
 <control-tag name="RevError" tag="207"/>
-<control-tag name="MicStatus" tag="204"/>
-<control-tag name="RevStatus" tag="205"/></control-tags>
- <gradients><gradient name="Button"><color-stop rgba="#45586bff" start="0"/><color-stop rgba="#273644ff" start="1"/></gradient><gradient name="ButtonActive"><color-stop rgba="#6eaed6ff" start="0"/><color-stop rgba="#326886ff" start="1"/></gradient></gradients>
- <template class="CViewContainer" name="view" origin="0, 0" size="1000, 615" minSize="1000, 615" maxSize="1000, 615" background-color="~ BlackCColor" transparent="false">
-  <view class="CTextLabel" origin="28, 15" size="550, 23" title="125A  /  VOICEMORPH" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextLabel" origin="28, 48" size="530, 23" title="VOICE TRANSFORMATION  -  DEVELOPMENT" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CViewContainer" origin="612, 7" size="368, 66" background-color="Panel" transparent="false" sub-controller="VoicePresets">
-   <view class="CTextLabel" origin="12, 4" size="345, 20" title="QUICK VOICE  /  EXISTING CONTROLS" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-   <view class="CTextButton" origin="12, 29" size="174, 31" title="HOLLYWOOD" control-tag="Hollywood" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/>
-   <view class="CTextButton" origin="196, 29" size="159, 31" title="ORIGINAL" control-tag="OriginalVoice" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/>
-  </view>
-  <view class="CViewContainer" origin="20, 77" size="594, 520" background-color="Panel" transparent="false">
-  <view class="CTextLabel" origin="18, 14" size="330, 23" title="VOICE / CHARACTER" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextLabel" origin="18, 65" size="138, 23" title="INPUT" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="161, 65" size="110, 25" control-tag="P100" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CTextLabel" origin="18, 143" size="138, 23" title="OUTPUT" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="161, 143" size="110, 25" control-tag="P101" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CTextLabel" origin="18, 221" size="138, 23" title="DE-NASAL" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="161, 221" size="110, 25" control-tag="P102" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CTextLabel" origin="18, 299" size="138, 23" title="CHEST" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="161, 299" size="110, 25" control-tag="P103" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CTextLabel" origin="18, 377" size="138, 23" title="WARMTH" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="161, 377" size="110, 25" control-tag="P104" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CTextLabel" origin="304, 65" size="138, 23" title="GRIT" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="447, 65" size="110, 25" control-tag="P105" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CTextLabel" origin="304, 143" size="138, 23" title="PRESENCE" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="447, 143" size="110, 25" control-tag="P106" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CTextLabel" origin="304, 221" size="138, 23" title="COMPRESSION" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="447, 221" size="110, 25" control-tag="P107" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CTextLabel" origin="304, 299" size="138, 23" title="LOW CUT" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="447, 299" size="110, 25" control-tag="P108" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CTextLabel" origin="304, 377" size="138, 23" title="BYPASS" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="447, 377" size="110, 25" control-tag="P109" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CTextLabel" origin="18, 445" size="138, 23" title="PITCH" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="161, 445" size="110, 25" control-tag="P117" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CTextLabel" origin="304, 445" size="138, 23" title="FORMANT" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="447, 445" size="110, 25" control-tag="P118" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <!-- Pitch and formant remain separate existing VST3 parameters.
-       In these asymmetric semitone ranges, 0 st is at 2/3 and 4/7
-       respectively, NOT at physical 50 percent. -->
-  <view class="CSlider" origin="18, 471" size="253, 15" control-tag="P117"
-        default-value="0.666666667" orientation="horizontal" mode="free click"
-        draw-frame="true" draw-back="true" draw-value="true"
-        draw-value-from-center="false" frame-width="1"
-        draw-frame-color="Outline" draw-back-color="Field" draw-value-color="Accent"/>
-  <view class="CSlider" origin="304, 471" size="253, 15" control-tag="P118"
-        default-value="0.571428571" orientation="horizontal" mode="free click"
-        draw-frame="true" draw-back="true" draw-value="true"
-        draw-value-from-center="false" frame-width="1"
-        draw-frame-color="Outline" draw-back-color="Field" draw-value-color="Accent"/>
-  <!-- Thin ticks below the tracks show 0 semitones, not range midpoints. -->
-  <view class="CViewContainer" origin="186, 487" size="2, 4" background-color="Accent" transparent="false" mouse-enabled="false"/>
-  <view class="CViewContainer" origin="448, 487" size="2, 4" background-color="Accent" transparent="false" mouse-enabled="false"/>
-  <view class="CTextLabel" origin="18, 493" size="540, 21" title="PITCH -12..+6 st   /   FORMANT -8..+6 st  |  CTRL+CLICK RESET" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  </view>
-  <view class="CViewContainer" origin="632, 77" size="348, 520" background-color="Panel" transparent="false">
-  <view class="CTextLabel" origin="16, 14" size="312, 23" title="DUAL IMPULSE RESPONSES" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CViewContainer" origin="215, 52" size="116, 27" transparent="true" sub-controller="IRLoader">
-   <view class="CTextButton" origin="0, 0" size="116, 27" title="CLEAR MIC" control-tag="ClearMic" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/>
-  </view>
-  <view class="CTextLabel" origin="16, 54" size="210, 23" title="MICROPHONE IR" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CViewContainer" origin="16, 82" size="145, 32" transparent="true" sub-controller="IRLoader">
-   <view class="CTextButton" origin="0, 0" size="145, 32" title="LOAD MIC WAV" control-tag="LoadMic" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/>
-  </view>
-  <view class="CTextLabel" origin="167, 87" size="62, 23" title="STATUS" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextLabel" origin="226, 87" size="105, 25" control-tag="MicStatus" title="EMPTY" font-color="Accent" back-color="Field" frame-color="Outline" frame-width="1"/>
-  <view class="CTextLabel" origin="173, 113" size="156, 20" control-tag="MicError" title="OK" font="~ NormalFont" font-color="Accent" text-alignment="left" transparent="true"/>
-  <view class="CTextLabel" origin="16, 138" size="112, 23" title="MIX" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="135, 138" size="100, 25" control-tag="P110" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CTextLabel" origin="16, 176" size="112, 23" title="LEVEL" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="135, 176" size="100, 25" control-tag="P111" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CTextLabel" origin="16, 214" size="112, 23" title="POSITION" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="135, 214" size="100, 25" control-tag="P114" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CTextLabel" origin="16, 252" size="112, 23" title="PREDELAY" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="135, 252" size="100, 25" control-tag="P115" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CViewContainer" origin="13, 292" size="320, 1" background-color="Outline" transparent="false"/>
-  <view class="CViewContainer" origin="215, 306" size="116, 27" transparent="true" sub-controller="IRLoader">
-   <view class="CTextButton" origin="0, 0" size="116, 27" title="CLEAR REVERB" control-tag="ClearRev" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/>
-  </view>
-  <view class="CTextLabel" origin="16, 308" size="210, 23" title="REVERB IR" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CViewContainer" origin="16, 336" size="145, 32" transparent="true" sub-controller="IRLoader">
-   <view class="CTextButton" origin="0, 0" size="145, 32" title="LOAD REVERB WAV" control-tag="LoadRev" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/>
-  </view>
-  <view class="CTextLabel" origin="167, 341" size="62, 23" title="STATUS" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextLabel" origin="226, 341" size="105, 25" control-tag="RevStatus" title="EMPTY" font-color="Accent" back-color="Field" frame-color="Outline" frame-width="1"/>
-  <view class="CTextLabel" origin="173, 367" size="156, 20" control-tag="RevError" title="OK" font="~ NormalFont" font-color="Accent" text-alignment="left" transparent="true"/>
-  <view class="CTextLabel" origin="16, 395" size="112, 23" title="MIX" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="135, 395" size="100, 25" control-tag="P112" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CTextLabel" origin="16, 433" size="112, 23" title="LEVEL" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="135, 433" size="100, 25" control-tag="P113" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  <view class="CTextLabel" origin="16, 471" size="112, 23" title="PREDELAY" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true"/>
-  <view class="CTextEdit" origin="135, 471" size="100, 25" control-tag="P116" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
-  </view>
- </template>
+<control-tag name="PreampStatus" tag="208"/>
+<control-tag name="PreampError" tag="209"/>
+<control-tag name="InputClip" tag="210"/>
+<control-tag name="OutputClip" tag="211"/></control-tags>
+<gradients><gradient name="Button"><color-stop rgba="#45586bff" start="0"/><color-stop rgba="#273644ff" start="1"/></gradient><gradient name="ButtonActive"><color-stop rgba="#6eaed6ff" start="0"/><color-stop rgba="#326886ff" start="1"/></gradient></gradients>
+<template class="CViewContainer" name="view" origin="0, 0" size="1000, 615" minSize="1000, 615" maxSize="1000, 615" background-color="~ BlackCColor" transparent="false">
+<view class="CTextLabel" origin="22, 9" size="460, 20" title="125A  /  VOICEMORPH" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CViewContainer" origin="612, 7" size="368, 35" background-color="Panel" transparent="false" sub-controller="VoicePresets">
+<view class="CTextButton" origin="9, 5" size="174, 26" title="HOLLYWOOD" control-tag="Hollywood" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/><view class="CTextButton" origin="189, 5" size="169, 26" title="ORIGINAL" control-tag="OriginalVoice" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/>
+</view>
+<view class="CTextLabel" origin="22, 43" size="958, 20" title="SIGNAL: 01 INPUT  &gt;  02 B1 EQ  &gt;  03 MIC IR  &gt;  04 PREAMP IR  &gt;  05 VOICE  &gt;  06 REVERB  &gt;  07 OUT" font="~ NormalFont" font-color="Accent" transparent="true" mouse-enabled="false"/>
+<view class="CTextLabel" origin="22, 63" size="955, 20" title="MIC ROUTE PRE (default). POST moves MIC IR after VOICE. All three IR stages are independent." font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CViewContainer" origin="20, 85" size="594, 520" background-color="Panel" transparent="false">
+<view class="CTextLabel" origin="16, 13" size="125, 20" title="01  INPUT" font="~ NormalFont" font-color="Accent" transparent="true" mouse-enabled="false"/>
+<view class="CTextEdit" origin="147, 11" size="98, 25" control-tag="P100" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CTextLabel" origin="16, 43" size="54, 20" title="IN L" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CSlider" origin="71, 43" size="146, 15" control-tag="InputPeakL" orientation="horizontal" mode="free click" mouse-enabled="false" draw-frame="true" draw-back="true" draw-value="true" draw-value-from-center="false" frame-width="1" draw-frame-color="Outline" draw-back-color="Field" draw-value-color="Accent"/>
+<view class="CTextLabel" origin="222, 41" size="74, 23" control-tag="InputPeakL" title="-inf dBFS" font="~ NormalFont" font-color="Accent" transparent="true" mouse-enabled="false"/>
+<view class="CTextLabel" origin="307, 43" size="50, 20" title="IN R" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CSlider" origin="356, 43" size="146, 15" control-tag="InputPeakR" orientation="horizontal" mode="free click" mouse-enabled="false" draw-frame="true" draw-back="true" draw-value="true" draw-value-from-center="false" frame-width="1" draw-frame-color="Outline" draw-back-color="Field" draw-value-color="Accent"/>
+<view class="CTextLabel" origin="503, 41" size="76, 23" control-tag="InputPeakR" title="-inf dBFS" font="~ NormalFont" font-color="Accent" transparent="true" mouse-enabled="false"/>
+<view class="CViewContainer" origin="13, 75" size="565, 1" background-color="Outline" transparent="false" mouse-enabled="false"/>
+<view class="CTextLabel" origin="16, 86" size="184, 20" title="02  B1 CORRECTION EQ" font="~ NormalFont" font-color="Accent" transparent="true" mouse-enabled="false"/>
+<view class="CTextButton" origin="205, 83" size="130, 29" title="B1 EQ ON/OFF" control-tag="P119" kick-style="false" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/>
+<view class="CTextLabel" origin="349, 88" size="227, 20" title="Fixed HF compensation" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CViewContainer" origin="13, 119" size="565, 1" background-color="Outline" transparent="false" mouse-enabled="false"/>
+<view class="CTextLabel" origin="16, 126" size="380, 20" title="05  VOICE PROCESSING" font="~ NormalFont" font-color="Accent" transparent="true" mouse-enabled="false"/>
+<view class="CTextLabel" origin="16, 159" size="125, 20" title="DE-NASAL" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/><view class="CTextEdit" origin="146, 156" size="105, 25" control-tag="P102" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CTextLabel" origin="305, 159" size="125, 20" title="CHEST" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/><view class="CTextEdit" origin="435, 156" size="105, 25" control-tag="P103" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CTextLabel" origin="16, 202" size="125, 20" title="WARMTH" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/><view class="CTextEdit" origin="146, 199" size="105, 25" control-tag="P104" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CTextLabel" origin="305, 202" size="125, 20" title="GRIT" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/><view class="CTextEdit" origin="435, 199" size="105, 25" control-tag="P105" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CTextLabel" origin="16, 245" size="125, 20" title="PRESENCE" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/><view class="CTextEdit" origin="146, 242" size="105, 25" control-tag="P106" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CTextLabel" origin="305, 245" size="125, 20" title="COMPRESSION" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/><view class="CTextEdit" origin="435, 242" size="105, 25" control-tag="P107" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CTextLabel" origin="16, 288" size="125, 20" title="LOW CUT" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/><view class="CTextEdit" origin="146, 285" size="105, 25" control-tag="P108" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CTextLabel" origin="305, 288" size="125, 20" title="BYPASS" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/><view class="CTextEdit" origin="435, 285" size="105, 25" control-tag="P109" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CTextLabel" origin="16, 331" size="125, 20" title="PITCH" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/><view class="CTextEdit" origin="146, 328" size="105, 25" control-tag="P117" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CTextLabel" origin="305, 331" size="125, 20" title="FORMANT" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/><view class="CTextEdit" origin="435, 328" size="105, 25" control-tag="P118" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CSlider" origin="16, 360" size="251, 14" control-tag="P117" default-value="0.666666667" orientation="horizontal" mode="free click" draw-frame="true" draw-back="true" draw-value="true" draw-value-from-center="false" frame-width="1" draw-frame-color="Outline" draw-back-color="Field" draw-value-color="Accent"/>
+<view class="CSlider" origin="305, 360" size="251, 14" control-tag="P118" default-value="0.571428571" orientation="horizontal" mode="free click" draw-frame="true" draw-back="true" draw-value="true" draw-value-from-center="false" frame-width="1" draw-frame-color="Outline" draw-back-color="Field" draw-value-color="Accent"/>
+<view class="CViewContainer" origin="183, 375" size="2, 4" background-color="Accent" transparent="false" mouse-enabled="false"/>
+<view class="CViewContainer" origin="449, 375" size="2, 4" background-color="Accent" transparent="false" mouse-enabled="false"/>
+<view class="CViewContainer" origin="13, 394" size="565, 1" background-color="Outline" transparent="false" mouse-enabled="false"/>
+<view class="CTextLabel" origin="16, 407" size="125, 20" title="07  OUTPUT" font="~ NormalFont" font-color="Accent" transparent="true" mouse-enabled="false"/>
+<view class="CTextEdit" origin="147, 405" size="98, 25" control-tag="P101" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CTextLabel" origin="16, 447" size="58, 20" title="OUT L" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CSlider" origin="71, 447" size="146, 15" control-tag="OutputPeakL" orientation="horizontal" mode="free click" mouse-enabled="false" draw-frame="true" draw-back="true" draw-value="true" draw-value-from-center="false" frame-width="1" draw-frame-color="Outline" draw-back-color="Field" draw-value-color="Accent"/>
+<view class="CTextLabel" origin="222, 445" size="74, 23" control-tag="OutputPeakL" title="-inf dBFS" font="~ NormalFont" font-color="Accent" transparent="true" mouse-enabled="false"/>
+<view class="CTextLabel" origin="307, 447" size="58, 20" title="OUT R" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CSlider" origin="356, 447" size="146, 15" control-tag="OutputPeakR" orientation="horizontal" mode="free click" mouse-enabled="false" draw-frame="true" draw-back="true" draw-value="true" draw-value-from-center="false" frame-width="1" draw-frame-color="Outline" draw-back-color="Field" draw-value-color="Accent"/>
+<view class="CTextLabel" origin="503, 445" size="76, 23" control-tag="OutputPeakR" title="-inf dBFS" font="~ NormalFont" font-color="Accent" transparent="true" mouse-enabled="false"/>
+<view class="CTextLabel" origin="16, 484" size="65, 20" title="CLIP IN" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CTextLabel" origin="87, 480" size="62, 23" control-tag="InputClip" title="OK" font="~ NormalFont" font-color="Accent" transparent="true" mouse-enabled="false"/>
+<view class="CTextLabel" origin="307, 484" size="75, 20" title="CLIP OUT" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CTextLabel" origin="390, 480" size="62, 23" control-tag="OutputClip" title="OK" font="~ NormalFont" font-color="Accent" transparent="true" mouse-enabled="false"/>
+</view>
+<view class="CViewContainer" origin="632, 85" size="348, 520" background-color="Panel" transparent="false">
+<view class="CTextLabel" origin="16, 14" size="270, 20" title="03  MICROPHONE IR" font="~ NormalFont" font-color="Accent" transparent="true" mouse-enabled="false"/>
+<view class="CViewContainer" origin="16, 41" size="140, 29" transparent="true" sub-controller="IRLoader"><view class="CTextButton" origin="0, 0" size="140, 29" title="LOAD MIC" control-tag="LoadMic" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/></view>
+<view class="CViewContainer" origin="165, 41" size="115, 29" transparent="true" sub-controller="IRLoader"><view class="CTextButton" origin="0, 0" size="115, 29" title="CLEAR MIC" control-tag="ClearMic" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/></view>
+<view class="CTextLabel" origin="282, 41" size="56, 23" control-tag="MicStatus" title="EMPTY" font="~ NormalFont" font-color="Accent" transparent="true" mouse-enabled="false"/>
+<view class="CTextLabel" origin="16, 79" size="66, 20" title="MIX" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CTextEdit" origin="90, 76" size="68, 25" control-tag="P110" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CTextLabel" origin="165, 79" size="70, 20" title="LEVEL" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CTextEdit" origin="238, 76" size="94, 25" control-tag="P111" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CTextLabel" origin="16, 115" size="68, 20" title="ROUTE" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CTextButton" origin="90, 112" size="68, 25" title="PRE/POST" control-tag="P114" kick-style="false" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/>
+<view class="CTextLabel" origin="165, 115" size="68, 20" title="DELAY" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CTextEdit" origin="238, 112" size="94, 25" control-tag="P115" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CViewContainer" origin="13, 158" size="320, 1" background-color="Outline" transparent="false" mouse-enabled="false"/>
+<view class="CTextLabel" origin="16, 169" size="260, 20" title="04  PREAMP IR" font="~ NormalFont" font-color="Accent" transparent="true" mouse-enabled="false"/>
+<view class="CViewContainer" origin="16, 195" size="140, 29" transparent="true" sub-controller="IRLoader"><view class="CTextButton" origin="0, 0" size="140, 29" title="LOAD PREAMP" control-tag="LoadPreamp" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/></view>
+<view class="CViewContainer" origin="165, 195" size="115, 29" transparent="true" sub-controller="IRLoader"><view class="CTextButton" origin="0, 0" size="115, 29" title="CLEAR PREAMP" control-tag="ClearPreamp" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/></view>
+<view class="CTextLabel" origin="282, 195" size="56, 23" control-tag="PreampStatus" title="EMPTY" font="~ NormalFont" font-color="Accent" transparent="true" mouse-enabled="false"/>
+<view class="CTextLabel" origin="16, 234" size="68, 20" title="MIX" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CTextEdit" origin="90, 231" size="68, 25" control-tag="P120" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CTextLabel" origin="165, 234" size="70, 20" title="LEVEL" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CTextEdit" origin="238, 231" size="94, 25" control-tag="P121" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CTextLabel" origin="16, 268" size="68, 20" title="DELAY" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CTextEdit" origin="90, 265" size="68, 25" control-tag="P122" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CViewContainer" origin="13, 311" size="320, 1" background-color="Outline" transparent="false" mouse-enabled="false"/>
+<view class="CTextLabel" origin="16, 323" size="270, 20" title="06  REVERB IR" font="~ NormalFont" font-color="Accent" transparent="true" mouse-enabled="false"/>
+<view class="CViewContainer" origin="16, 351" size="140, 29" transparent="true" sub-controller="IRLoader"><view class="CTextButton" origin="0, 0" size="140, 29" title="LOAD REVERB" control-tag="LoadRev" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/></view>
+<view class="CViewContainer" origin="165, 351" size="115, 29" transparent="true" sub-controller="IRLoader"><view class="CTextButton" origin="0, 0" size="115, 29" title="CLEAR REVERB" control-tag="ClearRev" kick-style="true" font="~ NormalFont" text-color="~ WhiteCColor" text-color-highlighted="~ WhiteCColor" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="4"/></view>
+<view class="CTextLabel" origin="282, 351" size="56, 23" control-tag="RevStatus" title="EMPTY" font="~ NormalFont" font-color="Accent" transparent="true" mouse-enabled="false"/>
+<view class="CTextLabel" origin="16, 394" size="68, 20" title="MIX" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CTextEdit" origin="90, 391" size="68, 25" control-tag="P112" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CTextLabel" origin="165, 394" size="70, 20" title="LEVEL" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CTextEdit" origin="238, 391" size="94, 25" control-tag="P113" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+<view class="CTextLabel" origin="16, 432" size="70, 20" title="DELAY" font="~ NormalFont" font-color="~ WhiteCColor" transparent="true" mouse-enabled="false"/>
+<view class="CTextEdit" origin="90, 429" size="68, 25" control-tag="P116" font="~ NormalFont" font-color="~ WhiteCColor" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="3" text-alignment="center" immediate-text-change="false"/>
+</view>
+</template>
 </vstgui-ui-description>

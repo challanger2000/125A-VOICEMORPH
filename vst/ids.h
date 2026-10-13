@@ -9,8 +9,11 @@ enum VMParameter : Vst::ParamID {
  kGrit=105,kPresence=106,kCompression=107,kLowCut=108,kBypass=109,
  kMicMix=110,kMicLevel=111,kReverbMix=112,kReverbLevel=113,kMicPosition=114,kMicPredelay=115,kReverbPredelay=116,
  kPitch=117,kFormant=118,
+ kB1Correction=119,kPreampMix=120,kPreampLevel=121,kPreampPredelay=122,
  kInputPeakL=200,kInputPeakR=201,kOutputPeakL=202,kOutputPeakR=203,
- kMicIRStatus=204,kReverbIRStatus=205,kMicIRError=206,kReverbIRError=207
+ kMicIRStatus=204,kReverbIRStatus=205,kMicIRError=206,kReverbIRError=207,
+ kPreampIRStatus=208,kPreampIRError=209,kInputClip=210,kOutputClip=211
 };
-constexpr int kParameterCount=19;
+constexpr int kLegacyParameterCount=19;
+constexpr int kParameterCount=23;
 }

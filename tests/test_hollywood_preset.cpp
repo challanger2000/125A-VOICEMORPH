@@ -67,14 +67,14 @@ int main(int argc,char** argv){
  };
  // Sub-controller applies to descendants. Keep the IR command listener scoped
  // to the four buttons, never to the surrounding seven VST3 numeric edits.
- assert(!has(xml,"origin=\"632, 77\" size=\"348, 520\" background-color=\"Panel\" transparent=\"false\" sub-controller"));
+ assert(!has(xml,"origin=\"632, 85\" size=\"348, 520\" background-color=\"Panel\" transparent=\"false\" sub-controller"));
  const auto count=[&](const std::string& needle){
   std::size_t n=0,at=0;
   while((at=xml.find(needle,at))!=std::string::npos){++n;at+=needle.size();}
   return n;
  };
- assert(count("sub-controller=\"IRLoader\"")==4);
- for(const char* tag:{"ClearMic","LoadMic","ClearRev","LoadRev"}){
+ assert(count("sub-controller=\"IRLoader\"")==6);
+ for(const char* tag:{"ClearMic","LoadMic","ClearRev","LoadRev","ClearPreamp","LoadPreamp"}){
   const auto opening=xml.find("sub-controller=\"IRLoader\"");
   assert(opening!=std::string::npos);
   assert(count(std::string("control-tag=\"")+tag+"\"")==1);
@@ -88,7 +88,7 @@ int main(int argc,char** argv){
   assert(parentEnd!=std::string::npos&&parentEnd<pos);
   assert(has(xml.substr(parent,parentEnd-parent),"sub-controller=\"IRLoader\""));
  }
- for(const int id:{110,111,112,113,114,115,116}){
+ for(const int id:{110,111,112,113,115,116,120,121,122}){
   const auto pos=xml.find("control-tag=\"P"+std::to_string(id)+"\"");
   assert(pos!=std::string::npos);
   const auto view=xml.rfind("<view class=\"CTextEdit\"",pos);
@@ -105,10 +105,22 @@ int main(int argc,char** argv){
  }
  assert(has(pitchSlider,"default-value=\"0.666666667\""));
  assert(has(formantSlider,"default-value=\"0.571428571\""));
- assert(has(pitchSlider,"origin=\"18, 471\""));
- assert(has(formantSlider,"origin=\"304, 471\""));
- assert(has(xml,"title=\"PITCH -12..+6 st"));
- for(const char* tag:{"LoadMic","LoadRev","ClearMic","ClearRev"})
+ assert(has(pitchSlider,"origin=\"16, 360\""));
+ assert(has(formantSlider,"origin=\"305, 360\""));
+ assert(has(xml,"title=\"05  VOICE PROCESSING\""));
+ for(const char* tag:{"LoadMic","LoadRev","ClearMic","ClearRev","LoadPreamp","ClearPreamp"})
   assert(has(xml,std::string("control-tag=\"")+tag+"\""));
- std::cout<<"Two presets, independent pitch/formant sliders, 19 existing parameters and IR controls PASS\n";
+
+ // Full audible/control path: new IDs, toggles, 3 IR slots, 4 meters and clipping.
+ for(const int id:{119,120,121,122}){
+  assert(has(xml,"name=\"P"+std::to_string(id)+"\" tag=\""+std::to_string(id)+"\""));
+  assert(has(xml,"control-tag=\"P"+std::to_string(id)+"\""));
+ }
+ assert(has(xml,"title=\"B1 EQ ON/OFF\" control-tag=\"P119\""));
+ assert(has(xml,"title=\"PRE/POST\" control-tag=\"P114\""));
+ for(const char* tag:{"InputPeakL","InputPeakR","OutputPeakL","OutputPeakR","InputClip","OutputClip","PreampStatus"})
+  assert(has(xml,std::string("control-tag=\"")+tag+"\""));
+ for(const char* stage:{"01  INPUT","02  B1 CORRECTION EQ","03  MICROPHONE IR","04  PREAMP IR","05  VOICE PROCESSING","06  REVERB IR","07  OUTPUT"})
+  assert(has(xml,stage));
+ std::cout<<"Seven-step signal path, B1 toggle, 3 IR slots and meters GUI contract PASS\n";
 }

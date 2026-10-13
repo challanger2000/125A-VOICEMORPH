@@ -9,22 +9,22 @@
 #include <cctype>
 #include <string>
 namespace vm {
-inline bool isVoiceControl(int id) noexcept {return id>=100&&id<=118;}
+inline bool isVoiceControl(int id) noexcept {return id>=100&&id<=122;}
 inline bool formatVoiceControl(int id,double normalized,char* buf,std::size_t capacity) noexcept {
  if(!buf||capacity==0||!isVoiceControl(id)||!std::isfinite(normalized))return false;
  const double n=std::clamp(normalized,0.,1.);
  int result=0;
  if(id==100||id==101)result=std::snprintf(buf,capacity,"%.1f dB",(n-.5)*24.);
- else if((id>=102&&id<=107)||id==110||id==112)
+ else if((id>=102&&id<=107)||id==110||id==112||id==120)
   result=std::snprintf(buf,capacity,"%.0f %%",n*100.);
- else if(id==111||id==113)
+ else if(id==111||id==113||id==121)
   result=std::snprintf(buf,capacity,"%.0f %%",n*400.);
  else if(id==108)
   result=n<=0.?std::snprintf(buf,capacity,"OFF"):
     std::snprintf(buf,capacity,"%.0f Hz",35.+145.*n);
- else if(id==109)result=std::snprintf(buf,capacity,"%s",n>=.5?"ON":"OFF");
+ else if((id==109||id==119))result=std::snprintf(buf,capacity,"%s",n>=.5?"ON":"OFF");
  else if(id==114)result=std::snprintf(buf,capacity,"%s",n>=.5?"POST":"PRE");
- else if(id==115||id==116)result=std::snprintf(buf,capacity,"%.0f ms",n*2000.);
+ else if(id==115||id==116||id==122)result=std::snprintf(buf,capacity,"%.0f ms",n*2000.);
  else if(id==117||id==118){
   const double semitones=id==117?n*18.-12.:n*14.-8.;
   // Float-normalized neutral values can round to a tiny negative number.
@@ -47,7 +47,7 @@ inline bool parseVoiceControl(int id,const std::string& input,double& normalized
  std::string s=trimLowerAscii(input);
  if(s.empty())return false;
  if(id==108&&s=="off"){normalized=0.;return true;}
- if(id==109){
+ if((id==109||id==119)){
   if(s=="on"||s=="1"){normalized=1.;return true;}
   if(s=="off"||s=="0"){normalized=0.;return true;}
   return false;
@@ -77,10 +77,10 @@ inline bool parseVoiceControl(int id,const std::string& input,double& normalized
  if(id==100||id==101){
   if(!accepts("db")||physical< -12.||physical>12.)return false;
   n=physical/24.+.5;
- }else if((id>=102&&id<=107)||id==110||id==112){
+ }else if((id>=102&&id<=107)||id==110||id==112||id==120){
   if(!accepts("%")||physical<0.||physical>100.)return false;
   n=physical/100.;
- }else if(id==111||id==113){
+ }else if(id==111||id==113||id==121){
   if(!accepts("%")||physical<0.||physical>400.)return false;
   n=physical/400.;
  }else if(id==108){
@@ -88,7 +88,7 @@ inline bool parseVoiceControl(int id,const std::string& input,double& normalized
   n=(physical-35.)/145.;
   // Entering the minimum enabled frequency should turn LOW CUT ON.
   if(n==0.)n=1.e-6;
- }else if(id==115||id==116){
+ }else if(id==115||id==116||id==122){
   if(!accepts("ms")||physical<0.||physical>2000.)return false;
   n=physical/2000.;
  }else if(id==117||id==118){

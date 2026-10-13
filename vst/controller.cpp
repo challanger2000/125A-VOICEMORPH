@@ -16,23 +16,24 @@
 #include <algorithm>
 #include <string>
 namespace Steinberg {
-tresult VMController::clearIRFile(bool microphone){
+tresult VMController::clearIRFile(int slot){
+ if(slot<0||slot>2)return kInvalidArgument;
  auto message=owned(allocateMessage());
  if(!message)return kResultFalse;
  message->setMessageID("125A.ClearIR");
  auto* attributes=message->getAttributes();
- if(!attributes||attributes->setInt("microphone",microphone?1:0)!=kResultOk)
+ if(!attributes||attributes->setInt("slot",slot)!=kResultOk)
   return kResultFalse;
  return sendMessage(message);
 }
-tresult VMController::requestIRFile(const std::string& utf8Path,bool microphone){
- if(!vm::validIRPath(utf8Path))return kInvalidArgument;
+tresult VMController::requestIRFile(const std::string& utf8Path,int slot){
+ if(slot<0||slot>2||!vm::validIRPath(utf8Path))return kInvalidArgument;
  auto message=owned(allocateMessage());
  if(!message)return kResultFalse;
  message->setMessageID("125A.LoadIR");
  auto* attributes=message->getAttributes();
  if(!attributes)return kResultFalse;
- if(attributes->setInt("microphone",microphone?1:0)!=kResultOk||
+ if(attributes->setInt("slot",slot)!=kResultOk||
     attributes->setBinary("utf8Path",utf8Path.data(),static_cast<uint32>(utf8Path.size()))!=kResultOk)
   return kResultFalse;
  return sendMessage(message);
@@ -57,18 +58,21 @@ public:
  void valueChanged(VSTGUI::CControl* control) override {
   if(!control||control->getValueNormalized()<=.5f)return;
   const int tag=control->getTag();
-  if(tag==1002||tag==1003){owner->clearIRFile(tag==1002);return;}
-  if(tag!=1000&&tag!=1001)return;
+  if(tag==1002||tag==1003||tag==1005){
+   owner->clearIRFile(tag==1002?0:(tag==1005?1:2));return;
+  }
+  if(tag!=1000&&tag!=1001&&tag!=1004)return;
   auto* frame=editor?editor->getFrame():nullptr;
   if(!frame)return;
   auto* chooser=VSTGUI::CNewFileSelector::create(frame,VSTGUI::CNewFileSelector::kSelectFile);
   if(!chooser)return;
-  chooser->setTitle(tag==1000?"Load Microphone IR WAV":"Load Reverb IR WAV");
+  chooser->setTitle(tag==1000?"Load Microphone IR WAV":
+                    (tag==1004?"Load Preamp IR WAV":"Load Reverb IR WAV"));
   chooser->addFileExtension(VSTGUI::CFileExtension("Wave Audio","wav","audio/wav"));
   chooser->setDefaultExtension(VSTGUI::CFileExtension("Wave Audio","wav","audio/wav"));
   if(chooser->runModal()&&chooser->getNumSelectedFiles()>0){
    const auto* selected=chooser->getSelectedFile(0);
-   if(selected)owner->requestIRFile(selected,tag==1000);
+   if(selected)owner->requestIRFile(selected,tag==1000?0:(tag==1004?1:2));
   }
   chooser->forget();
  }
@@ -119,9 +123,14 @@ tresult PLUGIN_API VMController::initialize(FUnknown* context){
  parameters.addParameter(STR16("Mic IR Level"),nullptr,0,.25,Vst::ParameterInfo::kCanAutomate,kMicLevel);
  parameters.addParameter(STR16("Reverb IR Mix"),STR16("%"),0,.3,Vst::ParameterInfo::kCanAutomate,kReverbMix);
  parameters.addParameter(STR16("Reverb IR Level"),nullptr,0,.25,Vst::ParameterInfo::kCanAutomate,kReverbLevel);
- parameters.addParameter(STR16("Mic IR Position"),nullptr,1,1,Vst::ParameterInfo::kCanAutomate,kMicPosition);
+ parameters.addParameter(STR16("Mic IR Position"),nullptr,1,0,Vst::ParameterInfo::kCanAutomate,kMicPosition);
  parameters.addParameter(STR16("Mic IR Predelay"),STR16("ms"),0,0,Vst::ParameterInfo::kCanAutomate,kMicPredelay);
  parameters.addParameter(STR16("Reverb IR Predelay"),STR16("ms"),0,0,Vst::ParameterInfo::kCanAutomate,kReverbPredelay);
+ // Appended controls only: no legacy parameter IDs are reused.
+ parameters.addParameter(STR16("B1 Correction"),nullptr,1,1,Vst::ParameterInfo::kCanAutomate,kB1Correction);
+ parameters.addParameter(STR16("Preamp IR Mix"),STR16("%"),0,1,Vst::ParameterInfo::kCanAutomate,kPreampMix);
+ parameters.addParameter(STR16("Preamp IR Level"),nullptr,0,.25,Vst::ParameterInfo::kCanAutomate,kPreampLevel);
+ parameters.addParameter(STR16("Preamp IR Predelay"),STR16("ms"),0,0,Vst::ParameterInfo::kCanAutomate,kPreampPredelay);
  // Bipolar controls: at their actual defaults, Pitch 0 st and Formant 0 st.
  parameters.addParameter(STR16("Pitch"),STR16("st"),0,2./3.,
    Vst::ParameterInfo::kCanAutomate,kPitch);
@@ -135,17 +144,21 @@ tresult PLUGIN_API VMController::initialize(FUnknown* context){
  parameters.addParameter(STR16("Reverb IR Status"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kReverbIRStatus);
  parameters.addParameter(STR16("Mic IR Error"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kMicIRError);
  parameters.addParameter(STR16("Reverb IR Error"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kReverbIRError);
+ parameters.addParameter(STR16("Preamp IR Status"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kPreampIRStatus);
+ parameters.addParameter(STR16("Preamp IR Error"),nullptr,0,0,Vst::ParameterInfo::kIsReadOnly,kPreampIRError);
+ parameters.addParameter(STR16("Input Clip"),nullptr,1,0,Vst::ParameterInfo::kIsReadOnly,kInputClip);
+ parameters.addParameter(STR16("Output Clip"),nullptr,1,0,Vst::ParameterInfo::kIsReadOnly,kOutputClip);
  return kResultOk;
 }
 tresult PLUGIN_API VMController::setComponentState(IBStream* stream){
  if(!stream)return kResultFalse;
  IBStreamer io(stream,kLittleEndian);int32 version=0;
- if(!io.readInt32(version)||(version<1||version>7))return kResultFalse;
- const int count=version==1?10:(version==2?14:(version==3?15:(version<=5?17:kParameterCount)));
+ if(!io.readInt32(version)||(version<1||version>8))return kResultFalse;
+ const int count=version==1?10:(version==2?14:(version==3?15:(version<=5?17:(version<=7?kLegacyParameterCount:kParameterCount))));
  // Fully validate before modifying the visible controller state. Older
  // projects must reset new Pitch/Formant controls (and missing IR params)
  // rather than retaining values from the previously opened project.
- float restored[kParameterCount]={.5f,.5f,0,0,0,0,0,0,0,0,1,.25f,.3f,.25f,1.f,0.f,0.f,2.f/3.f,4.f/7.f};
+ float restored[kParameterCount]={.5f,.5f,0,0,0,0,0,0,0,0,1,.25f,.3f,.25f,1.f,0.f,0.f,2.f/3.f,4.f/7.f,0.f,1.f,.25f,0.f};
  for(int id=0;id<count;++id){
   float value=0;
   if(!io.readFloat(value)||!std::isfinite(value))return kResultFalse;
@@ -167,17 +180,21 @@ tresult PLUGIN_API VMController::getParamStringByValue(Vst::ParamID id,Vst::Para
   UString(string,128).fromAscii(display);
   return kResultTrue;
  }
- if(id==kMicIRError||id==kReverbIRError){
+ if(id==kMicIRError||id==kPreampIRError||id==kReverbIRError){
   if(!std::isfinite(value))value=0.;
   const int code=std::clamp(static_cast<int>(std::lround(value*5.)),0,5);
   UString(string,128).fromAscii(vm::irErrorLabel(code));
   return kResultTrue;
  }
- if(id==kMicIRStatus||id==kReverbIRStatus) {
+ if(id==kMicIRStatus||id==kPreampIRStatus||id==kReverbIRStatus) {
   if(!std::isfinite(value))value=0.;
   const int idx=std::clamp(static_cast<int>(std::lround(value*3.)),0,3);
   const char* labels[]={"EMPTY","LOADING","READY","ERROR"};
   UString(string,128).fromAscii(labels[idx]);
+  return kResultTrue;
+ }
+ if(id==kInputClip||id==kOutputClip){
+  UString(string,128).fromAscii(value>=.5?"CLIP":"OK");
   return kResultTrue;
  }
  if(id>=kInputPeakL&&id<=kOutputPeakR) {

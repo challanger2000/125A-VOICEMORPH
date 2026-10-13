@@ -18,7 +18,7 @@ void verifyHostRate(int rate){
  left.prepare(rate);right.prepare(rate);
  vm::FixedLatencyIRChain chain;
  chain.preparePitchLatency(spectralLatency);
- assert(chain.latencySamples()==spectralLatency+256);
+ assert(chain.latencySamples()==spectralLatency+384);
  const vm::WaveIR impulse{static_cast<std::uint32_t>(rate),2,{1.f,1.f}};
  vm::StereoIRStage mic,reverb;
  assert(mic.prepare(impulse,rate));

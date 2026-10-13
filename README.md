@@ -8,10 +8,12 @@ Transform an already low-pitched but somewhat nasal speaking voice toward a natu
 
 ## Planned audio chain
 
-Input → optional pitch/formant speech engine → adaptive de-nasal / resonances → chest / texture / presence → microphone IR → speech dynamics → reverb IR wet path → output.
+Input → optional pitch/formant speech engine → adaptive de-nasal / resonances → chest / texture / presence → microphone IR → preamp IR → speech dynamics → reverb IR wet path → output.
 
-Two separate convolution engines:
-- MIC IR: short/long mono/stereo microphone coloration WAV IRs; optional PRE/POST voice section.
+Three independent convolution engines:
+- B1 CORRECTION: fixed Studio Projects B1 inverse-high-frequency EQ, binary ON/OFF, before all IRs.
+- MIC IR: optional microphone-coloration WAV, PRE by default; legacy POST still available.
+- PREAMP IR: separate linear preamp-colour WAV convolution between MIC and voice processing.
 - REVERB IR: mono, stereo, and (when supplied) 4-channel true stereo; pre-delay, wet/dry, level and tail.
 
 All algorithms and parameter defaults are **provisional until measured**. Pitch and formant shifting should be evaluated against representative speech before selecting an implementation. Genuine speaker-identity conversion is out of scope for V1.
@@ -24,7 +26,7 @@ All algorithms and parameter defaults are **provisional until measured**. Pitch 
 - All new GUI work: static design and approved master assets first, then VSTGUI.
 - Technical scope and test gates: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/QA-PLAN.md](docs/QA-PLAN.md).
 
-**Status (2026-10-12):** Active VST3 development build; automated Windows CI compiles the plugin and runs 47 Steinberg Validator checks plus DSP/functional and allocation/CPU stress probes. The processor contains spectral pitch/formant shifting, voice-tone/dynamics, microphone and reverb IR load/clear, partitioned convolution, gain/peak telemetry and a development VSTGUI with 100/150% zoom. This is **not** the final approved GUI or a release. Host GUI attach/reopen, level-matched real-speech listening, long-term DAW operation, IR state portability and the final 125A release audit are not yet signed off. Check the latest GitHub Actions run for exact passing-test counts. 
+**Status (2026-10-12):** Active VST3 development build; automated Windows CI compiles the plugin and runs 47 Steinberg Validator checks plus DSP/functional and allocation/CPU stress probes. The processor contains spectral pitch/formant shifting, voice-tone/dynamics, microphone, preamp and reverb IR load/clear, partitioned convolution, gain/peak telemetry and a development VSTGUI with 100/150% zoom. This is **not** the final approved GUI or a release. Host GUI attach/reopen, level-matched real-speech listening, long-term DAW operation, IR state portability and the final 125A release audit are not yet signed off. Check the latest GitHub Actions run for exact passing-test counts. 
 - Normal audio arrangements: Mono→Mono, Mono→Stereo, Stereo→Stereo. Host buffers: 32-bit and 64-bit floating point (internal DSP remains float).
 - Project state v7 embeds the **original WAV bytes** for both IR slots, while retaining source paths as optional provenance/fallback for v5-v6 projects. Older state v1-v6 remains readable. The embedded recall and corruption guards require successful CI and Studio One restore tests before claiming portable DAW release behavior.
 
@@ -71,3 +73,9 @@ are starting points for level-matched listening, not certified mic modelling.
 A separate private B1/U87/V311 tone IR was prepared from the user's
 commercially obtained IR files. Those source files and derivative WAVs are
 **not** stored in this GitHub repository.
+
+## B1 correction and explicit signal flow (development)
+
+The editor now numbers the live chain 01 INPUT → 02 B1 CORRECTION → 03 MIC IR → 04 PREAMP IR → 05 VOICE → 06 REVERB IR → 07 OUTPUT, with L/R input/output peak readouts and per-block clipping indication. Input and output gain are at their corresponding ends. Optional MIC POST explicitly moves MIC behind VOICE for compatibility with prior projects. B1 EQ is **documented-shape and empirically approximated** from the Studio Projects B1 response described by Bonedo, not a calibrated measurement. See [signal-chain evidence](docs/B1-SIGNAL-CHAIN.md).
+
+Project-state v8 adds an independently embedded preamp WAV IR without renumbering existing VST3 parameter IDs. Old saved sessions leave the new B1 correction OFF. Fixed three-slot IR latency is 384 samples plus spectral engine delay; DAW PDC and v1-v7 recall remain subject to real-host verification. Build/CTests do not constitute final plugin QA.
