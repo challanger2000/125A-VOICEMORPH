@@ -75,24 +75,29 @@ Metrics profile(int rate,bool dense=false,int blockSize=128) {
  left.prepare(rate);right.prepare(rate);
  vm::FixedLatencyIRChain chain;
  chain.preparePitchLatency(static_cast<std::size_t>(spectral.latencySamples()));
- vm::StereoIRStage mic,reverb;
+ vm::StereoIRStage mic,preamp,reverb;
+ vm::B1Correction correction;
+ correction.setEnabled(true);
+ correction.prepare(rate);
  vm::StereoIRStage* micPtr=nullptr;
+ vm::StereoIRStage* preampPtr=nullptr;
  vm::StereoIRStage* revPtr=nullptr;
  if(dense){
-  // Exact same full signal path as the empty-IR probe, but both FFT stages
+  // Full signal path with B1 correction and three loaded FFT stages
   // are filled with reproducible non-sparse 700 ms IRs. PRE microphone uses
   // true-stereo (4 convolution paths) and reverb uses stereo (2 paths).
   const auto micWave=makeDenseIR(rate,700,true);
+  const auto preampWave=makeDenseIR(rate,700,false);
   const auto revWave=makeDenseIR(rate,700,false);
-  assert(mic.prepare(micWave,rate)&&reverb.prepare(revWave,rate));
-  mic.setMix(.5f);reverb.setMix(.4f);
-  mic.setWetLevel(.8f);reverb.setWetLevel(.8f);
-  micPtr=&mic;revPtr=&reverb;
+  assert(mic.prepare(micWave,rate)&&preamp.prepare(preampWave,rate)&&reverb.prepare(revWave,rate));
+  mic.setMix(.5f);preamp.setMix(.55f);reverb.setMix(.4f);
+  mic.setWetLevel(.8f);preamp.setWetLevel(.8f);reverb.setWetLevel(.8f);
+  micPtr=&mic;preampPtr=&preamp;revPtr=&reverb;
  }
 
- assert(chain.latencySamples()==static_cast<std::size_t>(spectral.latencySamples())+256);
+ assert(chain.latencySamples()==static_cast<std::size_t>(spectral.latencySamples())+384);
  const auto latency=chain.latencySamples();
- assert(latency>=256&&latency<30000);
+ assert(latency>=384&&latency<30000);
  std::array<float,kMaxBlock> a{},b{};
  for(int i=0;i<kMaxBlock;++i){
   const float p=2.f*kPi*(i%kInputPeriod)*183.f/static_cast<float>(rate);
@@ -103,7 +108,7 @@ Metrics profile(int rate,bool dense=false,int blockSize=128) {
  for(int n=0;n<rate;++n){
   float l=0,r=0;
   chain.process(a[n%kMaxBlock],b[n%kMaxBlock],l,r,
-                left,right,micPtr,revPtr,true,false,&spectral);
+                left,right,micPtr,revPtr,true,false,&spectral,preampPtr,&correction);
   assert(std::isfinite(l)&&std::isfinite(r));
  }
  // Sample small-buffer FFT spikes over enough completed partitions.
@@ -122,7 +127,7 @@ Metrics profile(int rate,bool dense=false,int blockSize=128) {
   float lastL=0,lastR=0;
   for(int n=0;n<blockSize;++n){
    chain.process(a[n],b[n],lastL,lastR,left,right,micPtr,revPtr,
-                 true,block%91>=75,&spectral);
+                 true,block%91>=75,&spectral,preampPtr,&correction);
   }
   gTrack.store(false,std::memory_order_relaxed);
   const auto end=Clock::now();
@@ -165,7 +170,7 @@ int main(){
   for(const int block:{16,32,64,128,256,512}){
   const Metrics m=profile(rate,true,block);
   std::cout<<"pitch-rt rate="<<rate
-           <<" ir=700ms true-stereo-mic+stereo-reverb block="<<block<<" frames, "
+           <<" ir=700ms true-stereo-mic+stereo-preamp+stereo-reverb+B1EQ block="<<block<<" frames, "
            <<"mean="<<m.meanUs<<"us p95="<<m.p95Us<<"us p99="<<m.p99Us
            <<"us max="<<m.maxUs<<"us deadline="<<m.deadlineUs
            <<"us overruns="<<m.overruns<<" cpp_allocations="<<m.allocations

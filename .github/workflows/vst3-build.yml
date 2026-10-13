@@ -23,10 +23,20 @@ jobs:
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Spectral realtime CPU and allocation probe
         run: .\build\Release\test_pitch_realtime.exe
+      - name: Stage installable VST3 directory
+        shell: pwsh
+        run: |
+          $source = "build/VST3/Release/VoiceMorph.vst3"
+          if (-not (Test-Path -LiteralPath $source)) { throw "VST3 bundle missing: $source" }
+          New-Item -ItemType Directory -Force -Path "dist" | Out-Null
+          Copy-Item -LiteralPath $source -Destination "dist/VoiceMorph.vst3" -Recurse -Force
+          if (-not (Test-Path -LiteralPath "dist/VoiceMorph.vst3/Contents/x86_64-win/VoiceMorph.vst3")) {
+            throw "Installable VST3 binary missing from dist/VoiceMorph.vst3"
+          }
       - name: Package VST3 development build
         uses: actions/upload-artifact@v4
         with:
           name: VoiceMorph-v0.1.0-Windows-x64-DEVELOPMENT
-          path: build/VST3/Release/VoiceMorph.vst3/
+          path: dist/
           if-no-files-found: error
           retention-days: 14

@@ -39,6 +39,24 @@ int main(){
    assert(std::fabs(ol-(n==384?1.f:0.f))<1e-4f);
    assert(std::fabs(orr-(n==384?-.5f:0.f))<1e-4f);
   }
+  // Loaded PREAMP IR measurably changes signal at the third
+  // latency-aligned insert without any MIC or REVERB IR.
+  vm::WaveIR wave;
+  wave.sampleRate=static_cast<unsigned>(sr);
+  wave.channels=2;wave.interleaved={.5f,.5f};
+  vm::StereoIRStage preamp;
+  assert(preamp.prepare(wave,sr));
+  preamp.setMix(1.f);
+  chain.reset();
+  l.prepare(sr);r.prepare(sr);
+  eq.setEnabled(false);eq.prepare(sr);
+  for(int n=0;n<500;++n){
+   float ol=0.f,orr=0.f;
+   chain.process(n==0?1.f:0.f,n==0?-.5f:0.f,ol,orr,
+                 l,r,nullptr,nullptr,true,false,nullptr,&preamp,&eq);
+   assert(std::fabs(ol-(n==384?.5f:0.f))<1e-4f);
+   assert(std::fabs(orr-(n==384?-.25f:0.f))<1e-4f);
+  }
  }
- std::cout<<"B1 correction 44.1/48/96 kHz, neutral OFF and 3-stage PDC PASS\n";
+ std::cout<<"B1 correction 44.1/48/96 kHz, neutral OFF, loaded PREAMP and PDC PASS\n";
 }
