@@ -337,3 +337,22 @@ Windows build: https://github.com/challanger2000/125A-VOICEMORPH/actions/runs/38
 - No sonic/DSP/preset/IR or GUI geometry changes were required for the lifecycle correction.
 
 **Release gating still NOT VERIFIED:** 100%/150% Studio One zoom and mouse hit-testing, all sliders actual mouse drag and Ctrl+left reset, native load/clear dialogs and no-audio IR status feedback, DAW automation replay, saved-project recall and GUI appearance. These are separate from automated full tester PASS; no FINAL release claim.
+
+## Native Win32 VSTGUI mouse and 150% validation (2026-10-13)
+
+**Exact built source:** `472934289f13820dc0ce6380ea9d37ef30789eec`.
+**Independent Windows CI evidence:** https://github.com/challanger2000/125A-VOICEMORPH/actions/runs/38447423195
+
+**PASS on actual compiled VoiceMorph.vst3 (native Windows host HWND):**
+- 18/18 GUI CSliders moved by native Windows mouse input and changed their real Controller parameter values at **100%**.
+- 18/18 at 100% accepted Ctrl+left mouse and returned to the **real VST3 ParameterInfo.defaultNormalizedValue**.
+- The exact same 18/18 drag and Ctrl+left reset cases passed at **150%**.
+- `IPlugViewContentScaleSupport` 1.5x returned success; the actual native client rectangle and VST3 view both measured **1500×922** (no clipped window). Returned to 100%.
+- B1 EQ and Voice Bypass switches changed their own Controller parameters via the actual GUI at both zoom levels.
+- HOLLYWOOD and ORIGINAL GUI buttons changed/reset the expected Chest parameter through their real VSTGUI subcontrollers, at both zoom levels.
+- Native compiled Controller conversion tests, 20 editor attach/focus/detach/reopen cycles, 47/47 Steinberg Validator, 32/32 unit tests, and realtime no-allocation probe PASS.
+
+**CI host false negative discovered and fixed without any DSP or GUI change:**
+The GitHub Windows runner provided a 1024×728-pixel work area. Standard `WS_OVERLAPPEDWINDOW` max-track behavior originally capped the test-host native client at about **1028×749** despite the plugin requesting a 1500×922 zoomed view. Right/bottom controls were unclickable because they were outside the actual hosting HWND, not because the plugin's hit rectangles were malformed. The native host now raises WM_GETMINMAXINFO ptMaxTrackSize to 4096×4096, verifies requested vs actual client size, and pans the oversized host window so each tested click is on-screen. The prior failure is retained as evidence; not counted as a plugin regression.
+
+**Still NOT VERIFIED by this test:** mouse wheel increments, double-click / numeric CTextEdit keyboard entry, IR file selection via each native dialog, filename feedback, empty/invalid WAV lifecycle with transport stopped, full automation and project reload in actual Studio One, and visual 150% screenshot acceptability on the user's monitor. This is a significant native GUI test gate PASS, but not yet a FULL Studio One / FINAL approval.
