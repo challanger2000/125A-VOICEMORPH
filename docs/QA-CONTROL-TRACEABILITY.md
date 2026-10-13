@@ -221,3 +221,19 @@ This is a correctness-over-optimization tradeoff: some DAWs may cache the
 larger temporary bound and export extra silence. Hosts should re-query
 after the worker finishes, but this interaction remains **NOT VERIFIED**
 in Studio One.
+
+## Native editor lifecycle integration probe (development, BUILD PENDING)
+
+The Windows workflow now builds `test_vm_editor_lifecycle.exe` against the
+same pinned Steinberg SDK hosting API as the 125A Plugin Tester.
+It opens **the actual newly built VoiceMorph.vst3 bundle** via
+`VST3::Hosting::Module`, constructs and bidirectionally connects
+the component and controller, and creates a real HWND-backed VSTGUI
+editor. It runs **20 full cycles** of createView, setFrame, attached,
+message pump, focus, removed, unset frame, DestroyWindow, view release.
+A crash/failure exits nonzero and must fail the Windows workflow.
+
+Scope limitations remain explicit: it does not interact with all visible
+widgets by mouse, does not verify 150% zoom negotiation/hit coordinates,
+and does not replace the user's real Studio One attach/reopen/automation
+acceptance. No DSP parameters, tone or IR transfer functions are changed.

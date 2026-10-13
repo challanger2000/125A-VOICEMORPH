@@ -128,3 +128,18 @@ option(BUILD_VST3 "Build the actual Steinberg VST3 wrapper" OFF)
 if(BUILD_VST3)
  add_subdirectory(vst)
 endif()
+
+# Native GUI integration is not part of the headless DSP unit suite: this
+# executes the *packaged* VST3 through the actual VST3 hosting loader and
+# exercises Windows HWND attach/focus/detach/reopen. It must run on Windows.
+if(BUILD_VST3 AND WIN32 AND BUILD_TESTING)
+ add_executable(test_vm_editor_lifecycle
+  tests/test_vm_editor_lifecycle.cpp
+  "${VST3_SDK_ROOT}/public.sdk/source/vst/hosting/module_win32.cpp")
+ target_link_libraries(test_vm_editor_lifecycle PRIVATE
+  sdk_hosting sdk_common base pluginterfaces user32 ole32)
+ target_compile_definitions(test_vm_editor_lifecycle PRIVATE
+  _CRT_SECURE_NO_WARNINGS NOMINMAX UNICODE _UNICODE)
+ target_compile_options(test_vm_editor_lifecycle PRIVATE /UNDEBUG)
+ add_dependencies(test_vm_editor_lifecycle VoiceMorph)
+endif()
