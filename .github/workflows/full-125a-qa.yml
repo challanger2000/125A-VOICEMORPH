@@ -18,8 +18,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = "Stop"
-          $voiceRun = 38441902682
-          $voiceSha = "93df1bb32d7bfb24bba631b43ef7b40371f9c980"
+          $voiceRun = 38442951812
+          $voiceSha = "9c2cec57c972e5d1f6ab3dbf41472c483ee0bd62"
           $testerRun = 37432640438
           $testerSha = "fd246146994384e301c735e7d860b53aa06b18c5"
           $actualVoice = (gh api "repos/challanger2000/125A-VOICEMORPH/actions/runs/$voiceRun" --jq ".head_sha").Trim()
