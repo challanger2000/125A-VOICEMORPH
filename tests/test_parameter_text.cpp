@@ -21,6 +21,17 @@ int main(){
   double n=0.;assert(vm::parseVoiceControl(id,label,n));
   assert(std::fabs(n-expected)<tolerance);
  };
+ const auto displays=[&](int id,double n,const char* expected){
+  char text[48]{};
+  assert(vm::formatVoiceControl(id,n,text,sizeof(text)));
+  assert(std::string(text)==expected);
+ };
+ displays(117,2./3.,"0.0 st");
+ displays(117,.6666666865348816,"0.0 st");
+ displays(118,4./7.,"0.0 st");
+ displays(118,.5714285969734192,"0.0 st");
+ displays(117,10./18.,"-2.0 st");
+ displays(118,7./14.,"-1.0 st");
  valid(117,"-12 st",0.);
  valid(117,"+0.0 st",2./3.);
  valid(117,"+6 st",1.);

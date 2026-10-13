@@ -25,8 +25,14 @@ inline bool formatVoiceControl(int id,double normalized,char* buf,std::size_t ca
  else if(id==109)result=std::snprintf(buf,capacity,"%s",n>=.5?"ON":"OFF");
  else if(id==114)result=std::snprintf(buf,capacity,"%s",n>=.5?"POST":"PRE");
  else if(id==115||id==116)result=std::snprintf(buf,capacity,"%.0f ms",n*2000.);
- else if(id==117||id==118)
-  result=std::snprintf(buf,capacity,"%+.1f st",id==117?n*18.-12.:n*14.-8.);
+ else if(id==117||id==118){
+  const double semitones=id==117?n*18.-12.:n*14.-8.;
+  // Float-normalized neutral values can round to a tiny negative number.
+  // Display an unambiguous 0.0 st, never -0.0 or +0.0.
+  result=std::fabs(semitones)<.05?
+   std::snprintf(buf,capacity,"0.0 st"):
+   std::snprintf(buf,capacity,"%+.1f st",semitones);
+ }
  return result>=0&&static_cast<std::size_t>(result)<capacity;
 }
 inline std::string trimLowerAscii(std::string s){

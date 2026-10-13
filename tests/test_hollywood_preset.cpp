@@ -62,6 +62,35 @@ int main(int argc,char** argv){
   }
   return std::string{};
  };
+ // Sub-controller applies to descendants. Keep the IR command listener scoped
+ // to the four buttons, never to the surrounding seven VST3 numeric edits.
+ assert(!has(xml,"origin=\"632, 77\" size=\"348, 520\" background-color=\"Panel\" transparent=\"false\" sub-controller"));
+ const count=[&](const std::string& needle){
+  std::size_t n=0,at=0;
+  while((at=xml.find(needle,at))!=std::string::npos){++n;at+=needle.size();}
+  return n;
+ };
+ assert(count("sub-controller=\"IRLoader\"")==4);
+ for(const char* tag:{"ClearMic","LoadMic","ClearRev","LoadRev"}){
+  const auto opening=xml.find("sub-controller=\"IRLoader\"");
+  assert(opening!=std::string::npos);
+  assert(count(std::string("control-tag=\"")+tag+"\"")==1);
+  // Each command has its own isolated listener container.
+  const auto pos=xml.find(std::string("control-tag=\"")+tag+"\"");
+  const auto parent=xml.rfind("<view class=\"CViewContainer\"",pos);
+  assert(parent!=std::string::npos);
+  const auto startOfButton=xml.find("<view class=\"CTextButton\"",parent);
+  assert(startOfButton!=std::string::npos&&startOfButton<pos);
+  const auto parentEnd=xml.find('>',parent);
+  assert(parentEnd!=std::string::npos&&parentEnd<pos);
+  assert(has(xml.substr(parent,parentEnd-parent),"sub-controller=\"IRLoader\""));
+ }
+ for(const int id:{110,111,112,113,114,115,116}){
+  const auto pos=xml.find("control-tag=\"P"+std::to_string(id)+"\"");
+  assert(pos!=std::string::npos);
+  const auto view=xml.rfind("<view class=\"CTextEdit\"",pos);
+  assert(view!=std::string::npos&&pos-view<600);
+ }
  const auto pitchSlider=sliderFor(117);
  const auto formantSlider=sliderFor(118);
  assert(!pitchSlider.empty()&&!formantSlider.empty());
