@@ -371,3 +371,21 @@ Windows VST3: https://github.com/challanger2000/125A-VOICEMORPH/actions/runs/384
 
 **Pending integration:** a new native VST3 v8 session test has been prepared to validate exact binary save/reload of 23 parameters with three original source WAV IRs. It must pass the next build before being counted as verified.
 **Remaining separate release gates:** actual IR file chooser dialogs, no-audio IR status and displayed filename, visual Studio One screenshots, Studio One real project/automation recall and final user acceptance.
+
+## Compiled VST3 v8 project-state and full independent QA — verified
+
+**Source of the exact tested VST3:** `c4b6d12b4c965b5b9c6751d42a50f02e439400dc`.
+**Windows build evidence:** https://github.com/challanger2000/125A-VOICEMORPH/actions/runs/38452874128
+**Full independent 125A Tester v0.2.9:** https://github.com/challanger2000/125A-VOICEMORPH/actions/runs/38453686908
+
+Native VST3 hosting test of `IComponent::setState/getState` and `IEditController::setComponentState` **PASS**:
+- Injected and loaded processor V8 state containing all **23** normalized VST3 parameters, including B1 correction, MIC, preamp and reverb settings.
+- Injected three **original mono PCM16 WAV IR byte payloads** with versioned checksums, all three stored as portable embedded WAV data while each original external pathname was blank.
+- Confirmed controller's exact restoration of every normalized parameter; component re-save bytes were identical to the original complete v8 state including all three IRs and checksum headers.
+- Re-loaded the serialized blob and re-saved it a second time; all bytes stayed identical without any WAV files present on disk.
+- Same Windows build: **47/47 Steinberg Validator, 32/32 unit tests, 20/20 editor lifecycle, 18/18 native mouse drag/reset/wheel/typed numeric at 100% and 150%, full real-time allocation probe PASS**.
+- The post-build **independent 125A Plugin Tester v0.2.9 returned 46 PASS, 0 WARNING, 0 FAIL** on precisely that binary.
+
+**Test-host build issue resolved:** Steinberg `MemoryStream` is declared in `public.sdk/source/common/memorystream.h` but its implementation was not pulled in transitively by existing hosting libraries. The native test target now compiles `public.sdk/source/common/memorystream.cpp` directly. This affects only test code, not the plugin binary or sound.
+
+**Remaining release gates:** native file chooser interactions for all three LOAD buttons and corresponding CLEAR controls in Studio One; IR status changes when host processing is stopped; precise loaded IR filename feedback; screenshot/legibility and UX acceptance at 100% and 150%; full Studio One saved project reopen with native host automation playback, rather than only a VST3 protocol state loop. No FINAL claim from these tests alone.
