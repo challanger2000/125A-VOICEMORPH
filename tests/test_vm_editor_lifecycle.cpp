@@ -276,6 +276,77 @@ void dragNative(HWND host,int x0,int y0,int x1,int y1) {
  SendMessageW(target,WM_LBUTTONUP,0,MAKELPARAM(end.x,end.y));
  pump();
 }
+
+constexpr std::array<Widget,18> kGuiTextFields{{
+ {100,157,142,68,25},{101,918,495,59,25},
+ {102,235,340,77,25},{103,551,340,77,25},
+ {104,867,340,77,25},{105,235,388,77,25},
+ {106,551,388,77,25},{107,867,388,77,25},
+ {108,235,436,77,25},{110,615,187,65,25},
+ {111,615,221,65,25},{112,147,551,68,25},
+ {113,354,551,68,25},{116,561,551,68,25},
+ {117,551,436,77,25},{118,867,436,77,25},
+ {120,911,187,65,25},{121,911,221,65,25}
+}};
+int exerciseNativeWheelAndText(HWND host,IEditController* controller,double scale) {
+ const auto scaled=[&](int x){return int(std::lround(x*scale));};
+ for(const Widget& w:kGuiSliders){
+  if(controller->setParamNormalized(w.id,.4)!=kResultTrue)return 110;
+  const auto before=controller->getParamNormalized(w.id);
+  const int x=scaled(w.x+w.w/2),y=scaled(w.y+w.h/2);
+  positionWidgetInsideMonitor(host,x,y);
+  POINT screen{x,y};ClientToScreen(host,&screen);
+  SetCursorPos(screen.x,screen.y);pump();
+  int hitX=x,hitY=y;
+  HWND target=hitTarget(host,hitX,hitY);
+  SendMessageW(target,WM_MOUSEWHEEL,MAKEWPARAM(0,WHEEL_DELTA),
+               MAKELPARAM(screen.x,screen.y));
+  pump();
+  const auto after=controller->getParamNormalized(w.id);
+  if(!std::isfinite(after)||std::fabs(after-before)<1.e-6){
+   std::cerr<<"Native mouse wheel FAIL parameter "<<w.id
+            <<" zoom "<<scale<<" before "<<before<<" after "<<after<<"\n";
+   return 111;
+  }
+  std::cout<<"Native wheel "<<w.id<<" @ "<<scale<<"x PASS\n";
+ }
+ // Keyboard-edit a user-visible CTextEdit for every slider. Use the actual
+ // physical display string as the input, then compare the Controller result.
+ // This is real native WM_CHAR typing on a focused Win32 EDIT child.
+ for(const Widget& w:kGuiTextFields){
+  if(controller->setParamNormalized(w.id,.12)!=kResultTrue)return 112;
+  constexpr double wanted=.6;
+  TChar formatted[128]{};
+  if(controller->getParamStringByValue(w.id,wanted,formatted)!=kResultTrue)
+   return 113;
+  const int x=scaled(w.x+w.w/2),y=scaled(w.y+w.h/2);
+  mouseAction(host,x,y,true);mouseAction(host,x,y,false);
+  pump();
+  HWND edit=GetFocus();
+  wchar_t klass[64]{};
+  if(edit)GetClassNameW(edit,klass,64);
+  if(!edit||_wcsicmp(klass,L"Edit")!=0){
+   std::cerr<<"CTextEdit did not create native editable text field for "
+            <<w.id<<" @ "<<scale<<"x\n";
+   return 114;
+  }
+  SendMessageW(edit,EM_SETSEL,0,-1);
+  for(int i=0;i<127&&formatted[i];++i)
+   SendMessageW(edit,WM_CHAR,static_cast<WPARAM>(formatted[i]),1);
+  pump();
+  SendMessageW(edit,WM_KEYDOWN,VK_RETURN,1);
+  pump();
+  const double after=controller->getParamNormalized(w.id);
+  if(!std::isfinite(after)||std::fabs(after-wanted)>.015){
+   std::cerr<<"Native typed text parse FAIL "<<w.id<<" @ "<<scale
+            <<"x expected "<<wanted<<" returned "<<after<<"\n";
+   return 115;
+  }
+  std::cout<<"Native typed numeric edit "<<w.id<<" @ "<<scale<<"x PASS\n";
+ }
+ return 0;
+}
+
 int exerciseNativeMouse(HWND hwnd,IEditController* controller,double scale){
  // A native SetContentScaleFactor must adjust both editor geometry and
  // the mouse hit coordinates, not merely paint a magnified screenshot.
@@ -360,6 +431,7 @@ int exerciseNativeMouse(HWND hwnd,IEditController* controller,double scale){
 int exerciseNativeScalingAndControls(IPlugView* view,HWND hwnd,IEditController* controller){
  // Before any scale change, the GUI must respond to physical input.
  if(const int fail=exerciseNativeMouse(hwnd,controller,1.))return fail;
+ if(const int fail=exerciseNativeWheelAndText(hwnd,controller,1.))return fail;
  IPlugViewContentScaleSupport* support=nullptr;
  const bool available=view->queryInterface(IPlugViewContentScaleSupport::iid,
      reinterpret_cast<void**>(&support))==kResultTrue&&support;
@@ -392,6 +464,9 @@ int exerciseNativeScalingAndControls(IPlugView* view,HWND hwnd,IEditController* 
  std::cout<<"Native 150% HWND and VST3 view agree: "<<actualClient.right
           <<"x"<<actualClient.bottom<<" requested "<<wantW<<"x"<<wantH<<"\n";
  if(const int result=exerciseNativeMouse(hwnd,controller,1.5)){
+  support->release();return result;
+ }
+ if(const int result=exerciseNativeWheelAndText(hwnd,controller,1.5)){
   support->release();return result;
  }
  if(support->setContentScaleFactor(1.f)!=kResultTrue){
