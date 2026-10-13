@@ -123,14 +123,14 @@ tresult PLUGIN_API VMController::initialize(FUnknown* context){
  parameters.addParameter(STR16("Mic IR Level"),nullptr,0,.25,Vst::ParameterInfo::kCanAutomate,kMicLevel);
  parameters.addParameter(STR16("Reverb IR Mix"),STR16("%"),0,.3,Vst::ParameterInfo::kCanAutomate,kReverbMix);
  parameters.addParameter(STR16("Reverb IR Level"),nullptr,0,.25,Vst::ParameterInfo::kCanAutomate,kReverbLevel);
- parameters.addParameter(STR16("Mic IR Position"),nullptr,1,0,Vst::ParameterInfo::kCanAutomate,kMicPosition);
- parameters.addParameter(STR16("Mic IR Predelay"),STR16("ms"),0,0,Vst::ParameterInfo::kCanAutomate,kMicPredelay);
+ parameters.addParameter(STR16("Mic IR Position (legacy inactive)"),nullptr,1,0,0,kMicPosition);
+ parameters.addParameter(STR16("Mic IR Predelay (legacy inactive)"),STR16("ms"),0,0,0,kMicPredelay);
  parameters.addParameter(STR16("Reverb IR Predelay"),STR16("ms"),0,0,Vst::ParameterInfo::kCanAutomate,kReverbPredelay);
  // Appended controls only: no legacy parameter IDs are reused.
  parameters.addParameter(STR16("B1 Correction"),nullptr,1,1,Vst::ParameterInfo::kCanAutomate,kB1Correction);
  parameters.addParameter(STR16("Preamp IR Mix"),STR16("%"),0,1,Vst::ParameterInfo::kCanAutomate,kPreampMix);
  parameters.addParameter(STR16("Preamp IR Level"),nullptr,0,.25,Vst::ParameterInfo::kCanAutomate,kPreampLevel);
- parameters.addParameter(STR16("Preamp IR Predelay"),STR16("ms"),0,0,Vst::ParameterInfo::kCanAutomate,kPreampPredelay);
+ parameters.addParameter(STR16("Preamp IR Predelay (legacy inactive)"),STR16("ms"),0,0,0,kPreampPredelay);
  // Bipolar controls: at their actual defaults, Pitch 0 st and Formant 0 st.
  parameters.addParameter(STR16("Pitch"),STR16("st"),0,2./3.,
    Vst::ParameterInfo::kCanAutomate,kPitch);

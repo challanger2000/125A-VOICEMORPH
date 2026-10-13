@@ -6,6 +6,9 @@
 #include <iterator>
 #include <string>
 #include <set>
+#include <array>
+#include <utility>
+#include <cstdlib>
 namespace {
 bool has(const std::string& s,const std::string& needle){return s.find(needle)!=std::string::npos;}
 int count(const std::string& s,const std::string& needle){
@@ -65,12 +68,54 @@ int main(int argc,char** argv){
                       "MicStatus","PreampStatus","RevStatus"})
   assert(has(ui,std::string("control-tag=\"")+tag+"\""));
  // Binary controls are clickable and separately expose a readable state.
- assert(has(ui,"title=\"VOICE BYPASS\" control-tag=\"P109\" kick-style=\"false\""));
- assert(has(ui,"title=\"B1 EQ\" control-tag=\"P119\" kick-style=\"false\""));
+ assert(has(ui,"title=\"VOICE BYPASS\" control-tag=\"P109\" default-value=\"0\" kick-style=\"false\""));
+ assert(has(ui,"title=\"B1 EQ\" control-tag=\"P119\" default-value=\"1\" kick-style=\"false\""));
  assert(count(ui,"control-tag=\"P109\"")==2);
  assert(count(ui,"control-tag=\"P119\"")==2);
  assert(has(ui,"sub-controller=\"VoicePresets\""));
  assert(count(ui,"control-tag=\"Hollywood\"")==1);
  assert(count(ui,"control-tag=\"OriginalVoice\"")==1);
+ // Every editable slider reset value must match its actual VST3 default.
+ const std::array<std::pair<int,double>,18> sliderDefaults{{
+   {100,.5},{101,.5},{102,0.},{103,0.},{104,0.},{105,0.},
+   {106,0.},{107,0.},{108,0.},{110,1.},{111,.25},
+   {112,.3},{113,.25},{116,0.},{117,2./3.},{118,4./7.},
+   {120,1.},{121,.25}
+ }};
+ for(const auto& item:sliderDefaults){
+  const auto tag="control-tag=\"P"+std::to_string(item.first)+"\"";
+  bool found=false;
+  std::size_t at=0;
+  while((at=ui.find("<view class=\"CSlider\"",at))!=std::string::npos){
+   const auto end=ui.find("/>",at);assert(end!=std::string::npos);
+   const auto view=ui.substr(at,end-at+2);
+   if(has(view,tag)){
+    const auto key=view.find("default-value=\"");
+    assert(key!=std::string::npos);
+    const auto start=key+15,close=view.find('"',start);
+    assert(close!=std::string::npos);
+    const double actual=std::strtod(view.substr(start,close-start).c_str(),nullptr);
+    assert(std::fabs(actual-item.second)<1.e-6);
+    found=true;break;
+   }
+   at=end+2;
+  }
+  assert(found);
+ }
+ for(const auto& item:std::array<std::pair<int,int>,2>{{{109,0},{119,1}}}){
+  const auto tag="control-tag=\"P"+std::to_string(item.first)+"\"";
+  bool found=false;std::size_t at=0;
+  while((at=ui.find("<view class=\"CTextButton\"",at))!=std::string::npos){
+   const auto end=ui.find("/>",at);assert(end!=std::string::npos);
+   const auto view=ui.substr(at,end-at+2);
+   if(has(view,tag)){
+    assert(has(view,"default-value=\""+std::to_string(item.second)+"\""));
+    found=true;break;
+   }
+   at=end+2;
+  }
+  assert(found);
+ }
+ std::cout<<"20 visible parameter defaults agree with reset controls PASS\n";
  std::cout<<"Master logo, ordered stage layout, 18 mouse sliders + text edits, 6 IR commands, voice-only bypass GUI PASS\n";
 }

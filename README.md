@@ -141,3 +141,7 @@ sound less wet when loaded in this update: this is an intentional
 correction to the existing parameter's behavior, not a new parameter ID.
 The change is verified by deterministic high-energy WAV fixtures and
 requires fresh Studio One listening with the actual user IR.
+
+## Control audit (2026-10-13)
+
+See docs/QA-CONTROL-TRACEABILITY.md. The REVERB MIX slider default was 0% while VST3 and DSP default were 30%; corrected to 30%. The retired MIC POSITION, MIC PREDELAY and PREAMP PREDELAY parameters remain in saved state but no longer advertise automation, because there is no functional signal branch for them. VST3 getTailSamples remains unimplemented and is a documented offline rendering QA blocker. GUI interaction in Studio One remains NOT VERIFIED.
