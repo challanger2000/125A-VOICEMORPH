@@ -280,3 +280,40 @@ This is no longer only a static UIDESC test.
 **Gate:** WINDOWS CI PASS / NATIVE EDITOR LIFECYCLE PASS / STUDIO ONE
 MOUSE & SAVE/RECALL & FULL 125A TESTER = NOT VERIFIED /
 FINAL RELEASE = BLOCKED.
+
+
+## Independent 125A Plugin Tester v0.2.9 – deterministic failure found (2026-10-13)
+
+**Actual tested VoiceMorph artifact:** Windows VST3 from successful native
+controller test commit \`93df1bb32d7bfb24bba631b43ef7b40371f9c980\`.
+**Independent Tester binary:** authoritative 125A-Plugin-Tester-Final
+v0.2.9, pinned successful run \`37432640438\`.
+**QA evidence:** https://github.com/challanger2000/125A-VOICEMORPH/actions/runs/38442517235
+(download the run's \`VoiceMorph-125A-Full-QA-Reports\` artifact).
+
+**Measured:** 31 PASS / 0 WARNING / **4 FAIL**.
+- 32-bit and 64-bit audio torture: \`setProcessing(true)\` failed.
+- Processing lifecycle stress: \`setProcessing(true)\` failed.
+- Offline processing: \`setProcessing(true)\` failed.
+- The tester's exact diagnostic was **\`kNotImplemented\`**
+  (signed -2147467263, hexadecimal 0x80004001).
+
+**Root cause:** This plugin had never overridden
+\`IAudioProcessor::setProcessing(TBool)\`; Steinberg's SDK
+\`AudioEffect\` base class returns \`kNotImplemented\`. Validator 47/47
+and previous custom tests never validated this return value.
+
+**Corrective change in development:** Override \`setProcessing\` to
+acknowledge both transitions with \`kResultOk\` while doing no DSP
+changes, allocations, locks or tail reset. In the real hosted editor
+probe, require 32/64-bit \`setupProcessing\`, activation,
+\`setProcessing(true/false/true/false)\` and deactivation.
+
+**Not a PASS until rerun:** An independent 125A Tester rerun against
+the corrected exact VST3 binary must succeed, including audio-torture,
+offline and lifecycle tests. Studio One mouse, zoom and project
+roundtrip still require their own acceptance evidence.
+
+Primary VST3 SDK contract:
+https://steinbergmedia.github.io/vst3_doc/vstinterfaces/classSteinberg_1_1Vst_1_1IAudioProcessor.html
+

@@ -218,6 +218,14 @@ tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
  }
  return r;
 }
+// VST3 processing lifecycle acknowledgement. The SDK AudioEffect base class
+// returns kNotImplemented here, which is not acceptable to stricter hosts.
+// All buffers and IR workers are prepared by setupProcessing(); transport
+// start/stop needs no allocation, lock, audio reset or DSP coefficient change.
+// In particular, keep reverb tails alive when a host briefly pauses processing.
+tresult PLUGIN_API VMProcessor::setProcessing(TBool /*state*/){
+ return kResultOk;
+}
 uint32 PLUGIN_API VMProcessor::getLatencySamples(){
  return totalLatencySamples.load(std::memory_order_acquire);
 }

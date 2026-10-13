@@ -33,6 +33,7 @@ public:
  tresult PLUGIN_API initialize(FUnknown*) SMTG_OVERRIDE;
  tresult PLUGIN_API notify(Vst::IMessage*) SMTG_OVERRIDE;
  tresult PLUGIN_API setupProcessing(Vst::ProcessSetup&) SMTG_OVERRIDE;
+ tresult PLUGIN_API setProcessing(TBool state) SMTG_OVERRIDE;
  tresult PLUGIN_API canProcessSampleSize(int32) SMTG_OVERRIDE;
  tresult PLUGIN_API setBusArrangements(
   Vst::SpeakerArrangement* inputs,int32 numIns,

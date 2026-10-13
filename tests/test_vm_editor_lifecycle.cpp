@@ -136,6 +136,47 @@ int checkRealControllerParameters(IEditController* controller){
  return 0;
 }
 
+
+int checkRealProcessingLifecycle(IComponent* component){
+ if(!component)return 79;
+ IAudioProcessor* processor=nullptr;
+ if(component->queryInterface(IAudioProcessor::iid,
+       reinterpret_cast<void**>(&processor))!=kResultTrue||!processor){
+  std::cerr<<"No IAudioProcessor in real VST3\n";return 80;
+ }
+ for(int sampleFormat:{kSample32,kSample64}){
+  ProcessSetup setup{};
+  setup.processMode=kRealtime;
+  setup.sampleRate=48000.;
+  setup.maxSamplesPerBlock=512;
+  setup.symbolicSampleSize=sampleFormat;
+  if(processor->setupProcessing(setup)!=kResultOk){
+   std::cerr<<"setupProcessing FAIL sample format "<<sampleFormat<<"\n";
+   processor->release();return 81;
+  }
+  if(component->setActive(true)!=kResultOk){
+   std::cerr<<"setActive(true) FAIL\n";processor->release();return 82;
+  }
+  if(processor->setProcessing(true)!=kResultOk){
+   std::cerr<<"setProcessing(true) FAIL sample format "<<sampleFormat<<"\n";
+   component->setActive(false);processor->release();return 83;
+  }
+  // Steinberg allows false immediately after true with no process() block.
+  if(processor->setProcessing(false)!=kResultOk ||
+     processor->setProcessing(true)!=kResultOk ||
+     processor->setProcessing(false)!=kResultOk){
+   std::cerr<<"setProcessing transport toggle FAIL\n";
+   component->setActive(false);processor->release();return 84;
+  }
+  if(component->setActive(false)!=kResultOk){
+   std::cerr<<"setActive(false) FAIL\n";processor->release();return 85;
+  }
+ }
+ processor->release();
+ std::cout<<"Real VST3 setProcessing start/stop/restart in 32/64-bit PASS\n";
+ return 0;
+}
+
 int probe(const std::filesystem::path& path){
  std::string error;
  auto module=Module::create(path.u8string(),error);
@@ -167,6 +208,11 @@ int probe(const std::filesystem::path& path){
   }
   if(const int result=checkRealControllerParameters(controller)){
    std::cerr<<"Real compiled VST3 controller audit failed: "<<result<<"\n";
+   controller->terminate();controller->release();component->terminate();
+   return result;
+  }
+  if(const int result=checkRealProcessingLifecycle(component.get())){
+   std::cerr<<"Real compiled VST3 processor lifecycle audit failed: "<<result<<"\n";
    controller->terminate();controller->release();component->terminate();
    return result;
   }
