@@ -138,7 +138,8 @@ if(BUILD_VST3 AND WIN32 AND BUILD_TESTING)
  file(TO_CMAKE_PATH "${VST3_SDK_ROOT}" VM_SDK_CMAKE_PATH)
  add_executable(test_vm_editor_lifecycle
   tests/test_vm_editor_lifecycle.cpp
-  "${VM_SDK_CMAKE_PATH}/public.sdk/source/vst/hosting/module_win32.cpp")
+  "${VM_SDK_CMAKE_PATH}/public.sdk/source/vst/hosting/module_win32.cpp"
+  "${VM_SDK_CMAKE_PATH}/public.sdk/source/common/memorystream.cpp")
  target_link_libraries(test_vm_editor_lifecycle PRIVATE
   sdk_hosting sdk_common base pluginterfaces user32 ole32)
  target_compile_definitions(test_vm_editor_lifecycle PRIVATE
