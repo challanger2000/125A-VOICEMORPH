@@ -63,6 +63,9 @@ int main(){
   if(n==1040)after=l;
   assert(std::isfinite(l)&&std::isfinite(r));
  }
+ std::cerr<<"VOICE BYPASS diagnostic: before="<<before
+          <<" enter="<<enter<<" full="<<full<<" exit="<<exit
+          <<" after="<<after<<"\n";
  const float wet=.2f*vm::gain(12.f);
  assert(std::fabs(before-wet)<.002f);
  assert(std::fabs(full-.2f)<.002f);
