@@ -90,6 +90,19 @@ if(BUILD_TESTING)
  add_executable(test_hollywood_preset tests/test_hollywood_preset.cpp)
  target_link_libraries(test_hollywood_preset PRIVATE voicemorph_dsp)
  add_test(NAME voice_quick_preset_gui_contract COMMAND test_hollywood_preset "${CMAKE_SOURCE_DIR}/vst/resource/voicemorph.uidesc")
+ # All visible knobs and commands must trace through Controller IDs to their
+ # specific Processor target; plus each VOICE control must affect actual audio.
+ add_executable(test_control_wiring tests/test_control_wiring.cpp)
+ target_link_libraries(test_control_wiring PRIVATE voicemorph_dsp)
+ add_test(NAME all_gui_controller_processor_bindings COMMAND test_control_wiring
+  "${CMAKE_SOURCE_DIR}/vst/resource/voicemorph.uidesc"
+  "${CMAKE_SOURCE_DIR}/vst/ids.h"
+  "${CMAKE_SOURCE_DIR}/vst/controller.cpp"
+  "${CMAKE_SOURCE_DIR}/vst/processor.cpp"
+  "${CMAKE_SOURCE_DIR}/src/FixedLatencyIRChain.h")
+ add_executable(test_voice_control_responses tests/test_voice_control_responses.cpp)
+ target_link_libraries(test_voice_control_responses PRIVATE voicemorph_dsp)
+ add_test(NAME isolated_voice_knob_audio_response COMMAND test_voice_control_responses)
  # C++ allocation safety gate + diagnostic CPU p95/p99/max; single CI run.
  add_executable(test_pitch_realtime tests/test_pitch_realtime.cpp)
  target_link_libraries(test_pitch_realtime PRIVATE voicemorph_dsp)
@@ -98,11 +111,11 @@ if(BUILD_TESTING)
  add_test(NAME ir_loader_validation COMMAND test_ir_load_info)
  # CMake Release defines NDEBUG; preserve assert-based test execution.
  if(MSVC)
-  foreach(t test_voice test_ir test_wav test_ir_matrix test_partitioned_ir test_fft_stereo test_ir_resampler test_ir_stage test_meter_units test_ir_pipeline test_ir_file test_ir_builder test_ir_builder_stereo test_ir_handoff test_fixed_latency_ir test_ir_load_info test_pitch_formant test_pitch_chain test_pitch_realtime test_state_mailbox test_parameter_text test_parameter_cursor test_sample_format test_bus_layout test_ir_state_blob test_target_rates test_hollywood_preset test_b1_correction test_reverb_mix test_voice_bypass)
+  foreach(t test_voice test_ir test_wav test_ir_matrix test_partitioned_ir test_fft_stereo test_ir_resampler test_ir_stage test_meter_units test_ir_pipeline test_ir_file test_ir_builder test_ir_builder_stereo test_ir_handoff test_fixed_latency_ir test_ir_load_info test_pitch_formant test_pitch_chain test_pitch_realtime test_state_mailbox test_parameter_text test_parameter_cursor test_sample_format test_bus_layout test_ir_state_blob test_target_rates test_hollywood_preset test_b1_correction test_reverb_mix test_voice_bypass test_control_wiring test_voice_control_responses)
    target_compile_options(${t} PRIVATE /UNDEBUG)
   endforeach()
  else()
-  foreach(t test_voice test_ir test_wav test_ir_matrix test_partitioned_ir test_fft_stereo test_ir_resampler test_ir_stage test_fixed_latency_ir test_ir_load_info test_pitch_formant test_pitch_chain test_pitch_realtime test_state_mailbox test_parameter_text test_parameter_cursor test_sample_format test_bus_layout test_ir_state_blob test_target_rates test_hollywood_preset test_b1_correction test_reverb_mix test_voice_bypass)
+  foreach(t test_voice test_ir test_wav test_ir_matrix test_partitioned_ir test_fft_stereo test_ir_resampler test_ir_stage test_fixed_latency_ir test_ir_load_info test_pitch_formant test_pitch_chain test_pitch_realtime test_state_mailbox test_parameter_text test_parameter_cursor test_sample_format test_bus_layout test_ir_state_blob test_target_rates test_hollywood_preset test_b1_correction test_reverb_mix test_voice_bypass test_control_wiring test_voice_control_responses)
    target_compile_options(${t} PRIVATE -UNDEBUG)
   endforeach()
  endif()

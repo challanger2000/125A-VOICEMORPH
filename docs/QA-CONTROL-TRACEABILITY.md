@@ -125,3 +125,30 @@ acceptance remains NOT VERIFIED.
 GUI or from a Validator green check. Engineering must produce direct
 test evidence for each remaining gate; Studio One user hearing checks
 are supplemental, never a substitute for the structural audit.
+
+## Audit expansion: control-by-control regression (2026-10-13)
+
+Two additional CTest targets are being introduced without modifying the
+existing DSP, frequencies, signal path, parameter IDs, GUI geometry, or preset
+sound:
+
+- `all_gui_controller_processor_bindings`: enumerates **all 20 active
+  automatable GUI parameters** and their intended code destination, checks
+  all 18 visible sliders and numeric edits, all 2 switches, all 6 IR
+  load/clear actions, both preset button callbacks, and all 9 read-only
+  visible metering/status identifiers, plus exact retirement of 3 inactive
+  parameters. Requires the real parameter token, Controller registration and
+  Processor binding rather than existence of an arbitrary XML tag.
+- `isolated_voice_knob_audio_response`: drives independent sine-based
+  fixtures through each of the 7 VoiceDSP controls plus two I/O trims at
+  both 44.1 and 48 kHz. Requires a measurable result when each knob changes
+  and 0% neutrality relative to a matched reference; also asserts reverb
+  MIX law endpoints. Existing tests cover B1, reverb convolution, Voice
+  Bypass, pitch/formants and IR signal stages separately.
+- Updated state mailbox concurrency probe from the old 19 entries to all
+  **23 current parameter-state entries** (including B1/preamp controls).
+
+**Evidence level**: automated static/DSP regression only. It does **not**
+exercise native Studio One mouse gestures, VSTGUI attachment, DAW automation,
+complete real-project recall, host output telemetry, offline tail behavior
+or human listening. These remain release blockers until independently tested.

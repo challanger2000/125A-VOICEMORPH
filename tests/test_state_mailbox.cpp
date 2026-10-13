@@ -9,7 +9,7 @@
 namespace {
 // MSVC requires a namespace-scope integral constant for std::array's
 // template size when used from a thread lambda.
-constexpr std::size_t kCount=19;
+constexpr std::size_t kCount=23; // Current complete parameter state 100..122.
 }
 int main() {
  vm::ParameterStateMailbox<kCount> mailbox;
@@ -32,7 +32,7 @@ int main() {
  for(std::size_t i=0;i<kCount;++i)assert(std::fabs(out[i]-intermediate[i])<1.e-6f);
  assert(!mailbox.consumeAudio(out.data()));
  // As soon as host restores a new project, it must arrive as a single
- // complete 19-parameter vector, not partial offsets from another revision.
+ // complete 23-parameter vector, not partial offsets from another revision.
  std::atomic<bool> done{false};
  std::atomic<int> complete{0};
  std::thread host([&]{
