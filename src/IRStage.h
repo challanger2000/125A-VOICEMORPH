@@ -40,6 +40,7 @@ public:
  void setMix(float mix) noexcept {mix_=std::isfinite(mix)?std::clamp(mix,0.f,1.f):0.f;}
  void setWetLevel(float level) noexcept {level_=std::isfinite(level)?std::clamp(level,0.f,4.f):1.f;}
  bool ready()const noexcept{return active_;}
+ std::size_t responseFrames()const noexcept{return active_?convolution_.responseFrames():0;}
  std::size_t latencySamples()const noexcept{return active_?convolution_.latencySamples():0;}
  void reset()noexcept {
   convolution_.reset();

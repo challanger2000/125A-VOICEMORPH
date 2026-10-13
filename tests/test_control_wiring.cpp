@@ -144,6 +144,15 @@ int main(int argc,char** argv){
   assert(controller.find(std::string("kIsReadOnly,")+monitorIds[i])!=std::string::npos);
   assert(processor.find(monitorIds[i])!=std::string::npos);
  }
+ // Fail the build if an IR error is generated but has no visible GUI receiver.
+ for(const auto& pair:std::array<std::pair<const char*,const char*>,3>{{
+  {"MicError","kMicIRError"},{"PreampError","kPreampIRError"},
+  {"RevError","kReverbIRError"}
+ }}){
+  assert(ui.find(std::string("control-tag=\"")+pair.first+"\"")!=std::string::npos);
+  assert(inParamDeclaration(controller,pair.second,false));
+  assert(processor.find(pair.second)!=std::string::npos);
+ }
  // GUI should NOT advertise 'OFF' as a change to a global plugin bypass.
  assert(chain.find("stage(mic,micEmpty_,l,r);")!=std::string::npos);
  assert(chain.find("stage(preamp,preampEmpty_,l,r);")!=std::string::npos);

@@ -90,8 +90,10 @@ void VMProcessor::irWorkerLoop(){
     jp=path;js=source;hj=true;irJobWake.notify_one();continue;
    }
    if(prepared){
+    const uint32 responseFrames=static_cast<uint32>(prepared->responseFrames());
     handoff.reclaimControl();handoff.publishLatest(prepared);
     sp=path;ss=std::move(source);
+    irResponseFrames[slot].store(responseFrames,std::memory_order_release);
     status.store(path.empty()&&!ss?0:2,std::memory_order_release);
     err.store(0,std::memory_order_release);
    }else{
@@ -138,6 +140,13 @@ void VMProcessor::apply() noexcept {
  b1Correction.setEnabled(params[kB1Correction-kInput]>=.5f);
  p.denasal=params[2];p.chest=params[3];p.warmth=params[4];p.grit=params[5];
  p.presence=params[6];p.compression=params[7];p.lowCut=params[8];
+  // Host tail metadata only: independent of DSP coefficients and audio output.
+  const bool toneActive=params[2]>0.f||params[3]>0.f||params[4]>0.f||
+   params[5]>0.f||params[6]>0.f||params[7]>0.f||params[8]>0.f||
+   params[kB1Correction-kInput]>=.5f||
+   std::fabs(params[kPitch-kInput]-2.f/3.f)>1.e-5f||
+   std::fabs(params[kFormant-kInput]-4.f/7.f)>1.e-5f;
+  voiceFiltersActive.store(toneActive,std::memory_order_release);
  dsp[0].setParameters(p);dsp[1].setParameters(p);
  microphoneIR.setMix(params[kMicMix-kInput]);
  microphoneIR.setWetLevel(params[kMicLevel-kInput]*4.f);
@@ -193,6 +202,16 @@ tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
 }
 uint32 PLUGIN_API VMProcessor::getLatencySamples(){
  return totalLatencySamples.load(std::memory_order_acquire);
+}
+uint32 PLUGIN_API VMProcessor::getTailSamples(){
+ const std::array<std::uint32_t,3> frames{{
+  irResponseFrames[0].load(std::memory_order_acquire),
+  irResponseFrames[1].load(std::memory_order_acquire),
+  irResponseFrames[2].load(std::memory_order_acquire)
+ }};
+ return vm::estimateTailSamples(frames,
+  currentSampleRate.load(std::memory_order_acquire),
+  voiceFiltersActive.load(std::memory_order_acquire));
 }
 tresult PLUGIN_API VMProcessor::setBusArrangements(
  Vst::SpeakerArrangement* inputs,int32 numIns,

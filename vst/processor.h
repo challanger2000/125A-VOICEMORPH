@@ -8,12 +8,14 @@
 #include "IRLoadInfo.h"
 #include "FixedLatencyIRChain.h"
 #include "B1Correction.h"
+#include "IRTailAccounting.h"
 #include "PitchFormantDSP.h"
 #include "ParameterStateMailbox.h"
 #include <string>
 #include <memory>
 #include <cstdint>
 #include <atomic>
+#include <array>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
@@ -36,6 +38,7 @@ public:
   Vst::SpeakerArrangement* inputs,int32 numIns,
   Vst::SpeakerArrangement* outputs,int32 numOuts) SMTG_OVERRIDE;
  uint32 PLUGIN_API getLatencySamples() SMTG_OVERRIDE;
+ uint32 PLUGIN_API getTailSamples() SMTG_OVERRIDE;
  tresult PLUGIN_API process(Vst::ProcessData&) SMTG_OVERRIDE;
  tresult PLUGIN_API getState(IBStream*) SMTG_OVERRIDE;
  tresult PLUGIN_API setState(IBStream*) SMTG_OVERRIDE;
@@ -52,6 +55,8 @@ private:
  vm::FixedLatencyIRChain fixedIRChain;
  vm::PitchFormantDSP pitchEngine;
  std::atomic<uint32> totalLatencySamples{384};
+ std::array<std::atomic<uint32>,3> irResponseFrames{};
+ std::atomic<bool> voiceFiltersActive{false};
  float meterDisplay[4]{},meterHeld[4]{};
  double meterHoldSeconds[4]{},clipHoldSeconds[2]{};
  std::atomic<double> currentSampleRate{0.};

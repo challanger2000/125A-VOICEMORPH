@@ -188,3 +188,22 @@ or human listening. These remain release blockers until independently tested.
   roundtrip and lifecycle tests remain **NOT VERIFIED**.
 - The user's already approved voice timbre must remain unchanged while
   completing QA and UI/host reliability repairs.
+
+## Tail and visible IR errors (development change, build pending)
+
+- Processor implements `getTailSamples()` using actual resampled frame counts
+  from **MIC, PREAMP, REVERB**, the full 0–2s possible REVERB PREDELAY
+  and a documented conservative 2s voice IIR state decay allowance.
+  VST3 pipeline latency is reported **only** by `getLatencySamples()`
+  and is not added to tail. SDK contract:
+  https://steinbergmedia.github.io/vst3_doc/vstinterfaces/classSteinberg_1_1Vst_1_1IAudioProcessor.html
+- Three previously invisible error parameters 206/207/209 now have direct
+  read-only labels in their corresponding IR module. This does not yet
+  show the IR's filename nor guarantee telemetry while no audio block
+  is processed.
+- Tail is dynamic after worker loads. A host that caches one-time tail
+  reporting and does not requery on a file change still needs explicit
+  Studio One testing. IIR recovery bound is an approximation, not a proof
+  of mathematical zero.
+- All work is non-sonic: audio sample processing, filter coefficients,
+  FX wet laws and factory presets are unchanged.

@@ -65,7 +65,7 @@ int main(int argc,char** argv){
  for(const char* tag:{"LoadMic","ClearMic","LoadPreamp","ClearPreamp","LoadRev","ClearRev"})
   assert(count(ui,std::string("control-tag=\"")+tag+"\"")==1);
  for(const char* tag:{"InputPeakL","InputPeakR","OutputPeakL","OutputPeakR","InputClip","OutputClip",
-                      "MicStatus","PreampStatus","RevStatus"})
+                      "MicStatus","PreampStatus","RevStatus","MicError","PreampError","RevError"})
   assert(has(ui,std::string("control-tag=\"")+tag+"\""));
  // Binary controls are clickable and separately expose a readable state.
  assert(has(ui,"title=\"VOICE BYPASS\" control-tag=\"P109\" default-value=\"0\" kick-style=\"false\""));

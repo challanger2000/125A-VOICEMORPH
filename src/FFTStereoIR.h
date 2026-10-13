@@ -14,6 +14,7 @@ namespace vm {
 class FFTStereoIR {
  std::array<PartitionedIR,4> path_;
  bool loaded_=false;
+ std::size_t responseFrames_=0;
 public:
  bool prepare(const WaveIR& ir,double hostRate,bool reverbEnergyNormalize=false) {
   if(ir.channels!=1&&ir.channels!=2&&ir.channels!=4)return false;
@@ -63,9 +64,11 @@ public:
             static_cast<std::size_t>(hostRate*30.0)))return false;
   }
   path_=std::move(replacement);
+  responseFrames_=source.frames();
   loaded_=true;return true;
  }
  bool ready()const noexcept{return loaded_;}
+ std::size_t responseFrames()const noexcept{return loaded_?responseFrames_:0;}
  std::size_t activePathCount()const noexcept {
   std::size_t count=0;for(const auto& p:path_)if(p.ready())++count;return count;
  }
