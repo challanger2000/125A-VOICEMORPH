@@ -196,6 +196,38 @@ constexpr std::array<Widget,18> kGuiSliders{{
  {117,344,444,200,17},{118,660,444,200,17},
  {120,751,193,153,17},{121,751,227,153,17}
 }};
+
+void positionWidgetInsideMonitor(HWND host,int x,int y) {
+ // GitHub's desktop is sometimes only 1024x768, while a 150% 1000x615
+ // editor is 1500x923 plus Win32 title/decorations. A real OS pointer
+ // cannot click parts beyond screen bounds; translate the hosting window
+ // rather than falsely declaring a zoom hit-region defect.
+ POINT p{x,y};
+ if(!ClientToScreen(host,&p))return;
+ MONITORINFO monitor{};monitor.cbSize=sizeof(monitor);
+ if(!GetMonitorInfoW(MonitorFromWindow(host,MONITOR_DEFAULTTONEAREST),&monitor))return;
+ const RECT& area=monitor.rcWork;
+ const int cx=(area.left+area.right)/2;
+ const int cy=(area.top+area.bottom)/2;
+ const int margin=32;
+ const int dx=p.x<area.left+margin?cx-p.x:
+              (p.x>area.right-margin?cx-p.x:0);
+ const int dy=p.y<area.top+margin?cy-p.y:
+              (p.y>area.bottom-margin?cy-p.y:0);
+ if(dx||dy){
+  RECT frame{};
+  GetWindowRect(host,&frame);
+  SetWindowPos(host,nullptr,frame.left+dx,frame.top+dy,0,0,
+               SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
+  pump();
+  POINT check{x,y};ClientToScreen(host,&check);
+  std::cout<<"Native viewport relocation for 150% testing: "<<dx<<","<<dy
+           <<" client ("<<x<<","<<y<<") -> desktop ("
+           <<check.x<<","<<check.y<<") work area "
+           <<area.right-area.left<<"x"<<area.bottom-area.top<<"\n";
+ }
+}
+
 HWND hitTarget(HWND host,int& x,int& y) {
  POINT client{x,y};
  const HWND target=ChildWindowFromPointEx(host,client,CWP_SKIPINVISIBLE|CWP_SKIPDISABLED);
@@ -208,12 +240,14 @@ HWND hitTarget(HWND host,int& x,int& y) {
  return host;
 }
 void mouseAction(HWND host,int x,int y,bool down,WPARAM modifiers=0) {
+ positionWidgetInsideMonitor(host,x,y);
  HWND target=hitTarget(host,x,y);
  SendMessageW(target,down?WM_LBUTTONDOWN:WM_LBUTTONUP,
               (down?MK_LBUTTON:0)|modifiers,MAKELPARAM(x,y));
  pump();
 }
 void dragNative(HWND host,int x0,int y0,int x1,int y1) {
+ positionWidgetInsideMonitor(host,(x0+x1)/2,(y0+y1)/2);
  int x=x0,y=y0;
  HWND target=hitTarget(host,x,y);
  SetForegroundWindow(host);SetFocus(target);
@@ -240,7 +274,38 @@ int exerciseNativeMouse(HWND hwnd,IEditController* controller,double scale){
             <<" scale "<<scale<<" before "<<before<<" after "<<after<<"\n";
    return 91;
   }
-  std::cout<<"Native mouse slider "<<w.id<<" @ "<<scale<<"x PASS\n";
+  // VSTGUI's documented Ctrl + left click resets to the parameter's
+  // actual default, not necessarily the visible slider's last position.
+  double expectedDefault=-1.;
+  for(int32 index=0;index<controller->getParameterCount();++index){
+   ParameterInfo info{};
+   if(controller->getParameterInfo(index,info)==kResultTrue&&info.id==w.id){
+    expectedDefault=info.defaultNormalizedValue;break;
+   }
+  }
+  if(expectedDefault<0.)return 98;
+  const int centerX=px(w.x+w.w/2);
+  mouseAction(hwnd,centerX,y,true,MK_CONTROL);
+  mouseAction(hwnd,centerX,y,false,MK_CONTROL);
+  const double reset=controller->getParamNormalized(w.id);
+  if(!std::isfinite(reset)||std::fabs(reset-expectedDefault)>1.e-4){
+   std::cerr<<"Native Ctrl+left reset FAIL "<<w.id<<" @ "<<scale
+            <<"x expected "<<expectedDefault<<" actual "<<reset<<"\n";
+   return 99;
+  }
+  std::cout<<"Native mouse drag + Ctrl+left reset "<<w.id<<" @ "<<scale<<"x PASS\n";
+ }
+ // Both GUI one-click presets must invoke the real VST3 Controller callback.
+ controller->setParamNormalized(103,0.);
+ const int hwX=int(std::lround(801*scale)),hwY=int(std::lround(34*scale));
+ mouseAction(hwnd,hwX,hwY,true);mouseAction(hwnd,hwX,hwY,false);
+ if(std::fabs(controller->getParamNormalized(103)-.42)>1e-3){
+  std::cerr<<"Native HOLLYWOOD button FAIL @ "<<scale<<"x\n";return 100;
+ }
+ const int orX=int(std::lround(920*scale)),orY=hwY;
+ mouseAction(hwnd,orX,orY,true);mouseAction(hwnd,orX,orY,false);
+ if(std::fabs(controller->getParamNormalized(103))>1e-4){
+  std::cerr<<"Native ORIGINAL button FAIL @ "<<scale<<"x\n";return 101;
  }
  // The VOICE BYPASS switch must not be globally mapped to the plugin output.
  for(const auto& b:std::array<Widget,2>{{{109,797,286,171,28},{119,256,199,126,29}}}){
