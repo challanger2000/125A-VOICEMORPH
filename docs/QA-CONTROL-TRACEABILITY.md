@@ -237,3 +237,46 @@ Scope limitations remain explicit: it does not interact with all visible
 widgets by mouse, does not verify 150% zoom negotiation/hit coordinates,
 and does not replace the user's real Studio One attach/reopen/automation
 acceptance. No DSP parameters, tone or IR transfer functions are changed.
+
+## Verified Windows native editor lifecycle — 2026-10-13
+
+**Source commit:** `624cc4bbfcbcd50c16d1deba6e7e34855847ae44`
+
+**Exact CI run:** https://github.com/challanger2000/125A-VOICEMORPH/actions/runs/38439368989
+
+Measured and recorded in CI logs:
+- Steinberg VST3 validator: **47/47 PASS**
+- CTest: **32/32 PASS** with executable assertions enabled
+- 125A native Windows VST3 loader + real HWND editor host:
+  **20/20 createView → setFrame → attached(HWND) → message pump →
+  focus → removed → setFrame(nullptr) → DestroyWindow → release cycles PASS**
+- Real-time callback allocation probe: **PASS**
+- Windows x64 VST3 binary and resource bundle staging: **PASS**
+
+The native probe loads the newly built actual `VoiceMorph.vst3`
+from the Steinberg VST3 hosting module, creates and connects
+the Processor and Controller, and verifies native editor lifecycle.
+This is no longer only a static UIDESC test.
+
+### Still explicitly NOT VERIFIED
+- **100%/150% GUI mouse hit/zoom** under Studio One; native test
+  checks editor attach, not 150% zoom negotiation or real gestures.
+- All 18 sliders with real drag, Ctrl-left reset, text edit; the 2
+  buttons with actual mouse OFF/ON/reopen; all 6 load/clear file dialogs
+  with success, failure and loaded filename.
+- Real host output parameter/status telemetry while playback is stopped.
+  The error labels are connected, but the worker does not directly
+  push a GUI-thread notification without process blocks.
+- Real Studio One project reopen, preset/IR portability and automation.
+- Full separate **125A Plugin Tester v0.2.9** on this exact VST3
+  (state probe, I/O/events, offline/lifecycle/audio torture).
+- Audio offline render with long WAV tails and host dynamic
+  `getTailSamples()` re-query timing. Native tail accounting test is
+  not a host postroll test.
+- Real 150% GUI screenshot and human listening comparison. DSP has
+  intentionally not been modified, but sounding quality has not been
+  independently re-evaluated after build packaging.
+
+**Gate:** WINDOWS CI PASS / NATIVE EDITOR LIFECYCLE PASS / STUDIO ONE
+MOUSE & SAVE/RECALL & FULL 125A TESTER = NOT VERIFIED /
+FINAL RELEASE = BLOCKED.
