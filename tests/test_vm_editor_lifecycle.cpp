@@ -251,8 +251,12 @@ void dragNative(HWND host,int x0,int y0,int x1,int y1) {
  int x=x0,y=y0;
  HWND target=hitTarget(host,x,y);
  SetForegroundWindow(host);SetFocus(target);
+ POINT startScreen{x0,y0};ClientToScreen(host,&startScreen);
+ SetCursorPos(startScreen.x,startScreen.y);pump();
  SendMessageW(target,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(x,y));
  pump();
+ POINT endScreen{x1,y1};ClientToScreen(host,&endScreen);
+ SetCursorPos(endScreen.x,endScreen.y);pump();
  POINT end{x1,y1};ClientToScreen(host,&end);ScreenToClient(target,&end);
  SendMessageW(target,WM_MOUSEMOVE,MK_LBUTTON,MAKELPARAM(end.x,end.y));
  pump();
@@ -270,8 +274,27 @@ int exerciseNativeMouse(HWND hwnd,IEditController* controller,double scale){
   dragNative(hwnd,xa,y,xb,y);
   const auto after=controller->getParamNormalized(w.id);
   if(!(std::isfinite(after)&&after>=0.&&after<=1.&&std::fabs(after-before)>.05)){
+   RECT hostClient{},childClient{};GetClientRect(hwnd,&hostClient);
+   int startX=xa,startY=y;
+   HWND target=hitTarget(hwnd,startX,startY);
+   GetClientRect(target,&childClient);
+   POINT screen{xa,y};ClientToScreen(hwnd,&screen);
+   POINT actualMouse{};GetCursorPos(&actualMouse);
    std::cerr<<"Native VSTGUI drag FAIL parameter "<<w.id
-            <<" scale "<<scale<<" before "<<before<<" after "<<after<<"\n";
+            <<" scale "<<scale<<" before "<<before<<" after "<<after
+            <<" hostClient "<<hostClient.right<<"x"<<hostClient.bottom
+            <<" targetClient "<<childClient.right<<"x"<<childClient.bottom
+            <<" screen "<<screen.x<<","<<screen.y
+            <<" cursor "<<actualMouse.x<<","<<actualMouse.y<<"\n";
+   // Diagnose a native zoom transform mismatch: unscaled coordinates
+   // are NOT accepted as a 150% PASS, but are useful for identifying a
+   // plug-in that visually resizes without transforming hit regions.
+   if(scale>1.){
+    const int unscaledY=w.y+w.h/2;
+    dragNative(hwnd,w.x+w.w/5,unscaledY,w.x+4*w.w/5,unscaledY);
+    std::cerr<<"Native 1.5x diagnostic, same control with unscaled hit coords: "
+             <<controller->getParamNormalized(w.id)<<"\n";
+   }
    return 91;
   }
   // VSTGUI's documented Ctrl + left click resets to the parameter's
