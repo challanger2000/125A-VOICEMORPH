@@ -57,20 +57,17 @@ int main(){
   const bool bypass=n>=500&&n<900;
   chain.process(.2f,.2f,l,r,left,right,&mic,&rev,true,bypass);
   if(n==499)before=l;
-  if(n==500)enter=l;
-  if(n==650)full=l;
-  if(n==900)exit=l;
-  if(n==1040)after=l;
+  if(n==630)enter=l; // 128-sample downstream REVERB delay + beginning of ramp
+  if(n==785)full=l; // 128-sample fade + 128-sample downstream REVERB delay
+  if(n==1035)exit=l; // after the delayed start of the release ramp
+  if(n==1185)after=l; // ramp and downstream REVERB fully settled
   assert(std::isfinite(l)&&std::isfinite(r));
  }
- std::cerr<<"VOICE BYPASS diagnostic: before="<<before
-          <<" enter="<<enter<<" full="<<full<<" exit="<<exit
-          <<" after="<<after<<"\n";
  const float wet=.2f*vm::gain(12.f);
  assert(std::fabs(before-wet)<.002f);
  assert(std::fabs(full-.2f)<.002f);
  assert(enter<before && enter>full);
  assert(exit>full && exit<after);
  assert(std::fabs(after-wet)<.002f);
- std::cout<<"Constant VST3 dual-IR latency PASS\n";
+ std::cout<<"Three-stage IR latency and downstream voice bypass 128-sample fade PASS\n";
 }
