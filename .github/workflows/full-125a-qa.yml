@@ -1,0 +1,74 @@
+name: VOICEMORPH pinned 125A full tester
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop/v1.0.0]
+    paths: [.github/workflows/full-125a-qa.yml]
+permissions:
+  actions: read
+  contents: read
+jobs:
+  full-qa:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - name: Download pinned VOICEMORPH and trusted 125A Tester artifacts
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $voiceRun = 38441902682
+          $voiceSha = "93df1bb32d7bfb24bba631b43ef7b40371f9c980"
+          $testerRun = 37432640438
+          $testerSha = "fd246146994384e301c735e7d860b53aa06b18c5"
+          $actualVoice = (gh api "repos/challanger2000/125A-VOICEMORPH/actions/runs/$voiceRun" --jq ".head_sha").Trim()
+          $actualTester = (gh api "repos/challanger2000/125A-Plugin-Tester-Final/actions/runs/$testerRun" --jq ".head_sha").Trim()
+          if ($actualVoice -ne $voiceSha -or $actualTester -ne $testerSha) {
+            throw "Source provenance does not match pinned QA runs"
+          }
+          gh run download $voiceRun --repo challanger2000/125A-VOICEMORPH `
+            --name VoiceMorph-v0.1.0-Windows-x64-DEVELOPMENT --dir plugin
+          if ($LASTEXITCODE -ne 0) { throw "VoiceMorph artifact download failed" }
+          gh run download $testerRun --repo challanger2000/125A-Plugin-Tester-Final `
+            --name 125A-Plugin-Tester-Windows-x64 --dir tester
+          if ($LASTEXITCODE -ne 0) { throw "125A Tester artifact download failed" }
+          $plugin = Get-ChildItem plugin -Recurse -Directory -Filter "VoiceMorph.vst3" | Select-Object -First 1
+          $tester = Get-ChildItem tester -Recurse -File -Filter "125A_Plugin_Tester.exe" | Select-Object -First 1
+          if (-not $plugin -or -not $tester) { throw "Missing authoritative VST3 or tester executable" }
+          $binary = Join-Path $plugin.FullName "Contents\x86_64-win\VoiceMorph.vst3"
+          if (-not (Test-Path -LiteralPath $binary)) { throw "VST3 package binary missing" }
+          Write-Host "Pinned VST3 SHA: $actualVoice"
+          Write-Host "Pinned Tester SHA: $actualTester"
+      - name: Run complete 125A Plugin Tester v0.2.9 against real VST3
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $plugin = Get-ChildItem plugin -Recurse -Directory -Filter "VoiceMorph.vst3" | Select-Object -First 1
+          $tester = Get-ChildItem tester -Recurse -File -Filter "125A_Plugin_Tester.exe" | Select-Object -First 1
+          New-Item -ItemType Directory -Force -Path "reports" | Out-Null
+          $env:125A_PLUGIN_TESTER_REPORT_DIR = (Resolve-Path reports).Path
+          $proc = Start-Process -FilePath $tester.FullName `
+            -ArgumentList @("--portable-test", ('"' + $plugin.FullName + '"')) `
+            -Wait -PassThru
+          $report = Get-ChildItem reports -Recurse -File -Filter "*_125A_QA_Report.txt" |
+            Select-Object -First 1
+          if ($report) {
+            Write-Host "=== 125A QA REPORT ==="
+            Get-Content $report.FullName | Select-Object -Last 180 | ForEach-Object { Write-Host $_ }
+          }
+          if (-not $report) { throw "125A Tester produced no QA report" }
+          if ($proc.ExitCode -ne 0) { throw "125A Tester returned FAIL/INCONCLUSIVE: $($proc.ExitCode)" }
+          $reportText = Get-Content $report.FullName -Raw
+          if (-not $reportText.Contains("0 WARNING / 0 FAIL")) {
+            throw "125A Tester report not a clean PASS; inspect artifact reports"
+          }
+          Write-Host "125A FULL QA CLEAN PASS"
+      - name: Archive full independent 125A QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoiceMorph-125A-Full-QA-Reports
+          path: reports/
+          if-no-files-found: warn
+          retention-days: 30
