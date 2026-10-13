@@ -317,3 +317,23 @@ roundtrip still require their own acceptance evidence.
 Primary VST3 SDK contract:
 https://steinbergmedia.github.io/vst3_doc/vstinterfaces/classSteinberg_1_1Vst_1_1IAudioProcessor.html
 
+
+## Corrected independent 125A Full QA – verified PASS
+
+**Exact tested VoiceMorph source:** 9c2cec57c972e5d1f6ab3dbf41472c483ee0bd62
+Windows build: https://github.com/challanger2000/125A-VOICEMORPH/actions/runs/38442951812
+**Independent tester:** 125A Plugin Tester Final v0.2.9 source fd246146994384e301c735e7d860b53aa06b18c5 (run 37432640438).
+**Actual full tester run and report artifact:** https://github.com/challanger2000/125A-VOICEMORPH/actions/runs/38443543909
+
+**Independent measured result: 46 PASS / 0 WARNING / 0 FAIL.**
+
+- 32-/64-bit setProcessing lifecycle now PASS (the 4 initial failures are resolved).
+- 50/50 sample-rate/buffer combinations at 44.1/48/88.2/96/192 kHz.
+- 20 automatable parameters and 60 sample-accurate points processed.
+- Both float/double silence, impulse, DC and denormal probes and 256-block sustained stress PASS.
+- 8 activation/processing cycles, offline processing, post-stress restore, fresh-instance state transfer, reload and I/O/event isolation PASS.
+- Independent native GUI lifecycle: 5 complete attached/detached cycles PASS.
+- Steinberg Validator passed independently. The Windows build also passed its 47/47 Validator, 32/32 unit tests, 20/20 GUI lifecycle, real VST3 controller conversion and 32-/64-bit start/stop/restart tests.
+- No sonic/DSP/preset/IR or GUI geometry changes were required for the lifecycle correction.
+
+**Release gating still NOT VERIFIED:** 100%/150% Studio One zoom and mouse hit-testing, all sliders actual mouse drag and Ctrl+left reset, native load/clear dialogs and no-audio IR status feedback, DAW automation replay, saved-project recall and GUI appearance. These are separate from automated full tester PASS; no FINAL release claim.
