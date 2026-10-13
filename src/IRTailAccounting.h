@@ -9,6 +9,13 @@ namespace vm {
 // automation, so conservatively budget its full documented 0..2 seconds.
 // Voice IIR filters have mathematical infinite support: the 2-second
 // acoustic recovery allowance is an explicit engineering approximation.
+// While an IR is being prepared by the file worker, its final resampled
+// frame count is unknown. The SRC/partition implementation caps an
+// individual IR at exactly 30 seconds of host-rate frames.
+inline std::uint32_t pendingIRFrames(double hostRate) noexcept {
+ if(!std::isfinite(hostRate)||hostRate<8000.||hostRate>384000.)return 0;
+ return static_cast<std::uint32_t>(std::ceil(hostRate*30.));
+}
 inline std::uint32_t estimateTailSamples(
  const std::array<std::uint32_t,3>& frames,
  double hostRate,bool voiceFilterEnabled) noexcept {

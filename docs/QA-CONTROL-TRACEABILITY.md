@@ -207,3 +207,17 @@ or human listening. These remain release blockers until independently tested.
   of mathematical zero.
 - All work is non-sonic: audio sample processing, filter coefficients,
   FX wet laws and factory presets are unchanged.
+
+### Pending-IR host tail race
+A new WAV may be loading when the host asks for `getTailSamples()`.
+Publishing a shorter previous IR's tail would risk truncated exports after
+a replacement. While an IR is being decoded/resampled, the wrapper now
+reports the maximum supported 30-second response span for that slot;
+on success it publishes the exact prepared resampled frame count, and
+on failure restores the previous successfully loaded frame count (the
+sounding IR remains unchanged). On project restore or rate change, all
+three pending slots receive the same conservative temporary upper bound.
+This is a correctness-over-optimization tradeoff: some DAWs may cache the
+larger temporary bound and export extra silence. Hosts should re-query
+after the worker finishes, but this interaction remains **NOT VERIFIED**
+in Studio One.

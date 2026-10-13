@@ -8,6 +8,12 @@ int main(){
  for(double rate:{44100.,48000.,96000.}){
   const std::uint32_t sr=static_cast<std::uint32_t>(rate);
   assert(vm::estimateTailSamples({0,0,0},rate,false)==0);
+  const auto pending=vm::pendingIRFrames(rate);
+  assert(pending==sr*30);
+  assert(vm::estimateTailSamples({0,0,pending},rate,false)>=sr*30-1);
+  // A failed replacement must restore the previously accepted sample count;
+  // the restored count is passed through the same deterministic accounting.
+  assert(vm::estimateTailSamples({0,0,sr},rate,false)==sr*3-1);
   assert(vm::estimateTailSamples({0,0,0},rate,true)==2*sr);
   assert(vm::estimateTailSamples({sr,0,0},rate,false)==sr-1);
   assert(vm::estimateTailSamples({0,0,sr},rate,false)==3*sr-1);

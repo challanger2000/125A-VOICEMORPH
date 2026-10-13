@@ -36,6 +36,12 @@ void VMProcessor::queueIRJob(std::string path,int slot){
   auto& rev=slot==0?micRevision:(slot==1?preampRevision:reverbRevision);
   auto& status=slot==0?micIRStatus:(slot==1?preampIRStatus:reverbIRStatus);
   auto& err=slot==0?micIRError:(slot==1?preampIRError:reverbIRError);
+  // Safe upper bound during the asynchronous file load. A host must not
+  // requery too early and receive an obsolete shorter tail.
+  const auto pending=vm::pendingIRFrames(currentSampleRate.load(std::memory_order_acquire));
+  irResponseFrames[slot].store(
+   path.empty()?lastSuccessfulIRFrames[slot].load(std::memory_order_acquire):pending,
+   std::memory_order_release);
   jp=std::move(path);js.reset();hj=true;++rev;status.store(1);err.store(0);
  }
  irJobWake.notify_one();
@@ -93,12 +99,16 @@ void VMProcessor::irWorkerLoop(){
     const uint32 responseFrames=static_cast<uint32>(prepared->responseFrames());
     handoff.reclaimControl();handoff.publishLatest(prepared);
     sp=path;ss=std::move(source);
+    lastSuccessfulIRFrames[slot].store(responseFrames,std::memory_order_release);
     irResponseFrames[slot].store(responseFrames,std::memory_order_release);
     status.store(path.empty()&&!ss?0:2,std::memory_order_release);
     err.store(0,std::memory_order_release);
    }else{
     err.store(static_cast<int32_t>(vm::identifyIRError(error)),std::memory_order_release);
     status.store(3,std::memory_order_release);
+    // A rejected WAV does not replace the currently sounding IR.
+    irResponseFrames[slot].store(lastSuccessfulIRFrames[slot].load(std::memory_order_acquire),
+                                std::memory_order_release);
    }
   }
  }
@@ -191,6 +201,14 @@ tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
    micJobPath=micStatePath;micJobSource=micStateSource;hasMicJob=true;++micRevision;
    preampJobPath=preampStatePath;preampJobSource=preampStateSource;hasPreampJob=true;++preampRevision;
    reverbJobPath=reverbStatePath;reverbJobSource=reverbStateSource;hasReverbJob=true;++reverbRevision;
+    const auto pending=vm::pendingIRFrames(setup.sampleRate);
+    const bool queued[3]={!micStatePath.empty()||static_cast<bool>(micStateSource),
+                          !preampStatePath.empty()||static_cast<bool>(preampStateSource),
+                          !reverbStatePath.empty()||static_cast<bool>(reverbStateSource)};
+    for(int stage=0;stage<3;++stage){
+     lastSuccessfulIRFrames[stage].store(0,std::memory_order_release);
+     irResponseFrames[stage].store(queued[stage]?pending:0,std::memory_order_release);
+    }
    micIRStatus.store(micStatePath.empty()&&!micStateSource?0:1);
    preampIRStatus.store(preampStatePath.empty()&&!preampStateSource?0:1);
    reverbIRStatus.store(reverbStatePath.empty()&&!reverbStateSource?0:1);
@@ -569,6 +587,14 @@ tresult PLUGIN_API VMProcessor::setState(IBStream* stream){
   micJobSource=std::move(micSource);preampJobSource=std::move(preampSource);
   reverbJobSource=std::move(revSource);
   ++micRevision;++preampRevision;++reverbRevision;
+  const auto pending=vm::pendingIRFrames(currentSampleRate.load(std::memory_order_acquire));
+  for(int stage=0;stage<3;++stage){
+   const bool hasIR=stage==0?(!micStatePath.empty()||static_cast<bool>(micStateSource)):
+    (stage==1?(!preampStatePath.empty()||static_cast<bool>(preampStateSource)):
+              (!reverbStatePath.empty()||static_cast<bool>(reverbStateSource)));
+   lastSuccessfulIRFrames[stage].store(0,std::memory_order_release);
+   irResponseFrames[stage].store(hasIR?pending:0,std::memory_order_release);
+  }
  }
  irJobWake.notify_one();
  return kResultOk;
