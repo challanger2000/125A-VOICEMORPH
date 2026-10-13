@@ -27,6 +27,19 @@ namespace {
 constexpr int kCycles=20;
 constexpr wchar_t kClassName[]=L"125A_VoiceMorph_Editor_Lifecycle_Probe";
 LRESULT CALLBACK windowProc(HWND hwnd,UINT msg,WPARAM w,LPARAM l){
+ if(msg==WM_GETMINMAXINFO&&l){
+  // Windows' default MAXTRACKSIZE constrains a resizable top-level host
+  // window to approx 1028x749 on GitHub's 1024x728 desktop, even when
+  // VST3 requests a 1500x923 view. A real DAW is expected to permit
+  // plugin windows larger than its test desktop; keep the requested
+  // logical/physical client region valid and pan the window for each
+  // native control hit test.
+  auto* mm=reinterpret_cast<MINMAXINFO*>(l);
+  const auto result=DefWindowProcW(hwnd,msg,w,l);
+  mm->ptMaxTrackSize.x=4096;
+  mm->ptMaxTrackSize.y=4096;
+  return result;
+ }
  return DefWindowProcW(hwnd,msg,w,l);
 }
 void pump(){
@@ -364,6 +377,20 @@ int exerciseNativeScalingAndControls(IPlugView* view,HWND hwnd,IEditController* 
   support->release();
   std::cerr<<"150 percent scaling geometry NOT applied\n";return 96;
  }
+ // A host view resize request is not satisfied until the *actual native
+ // HWND client* is big enough. Without the WM_GETMINMAXINFO override, a
+ // synthetic pointer beyond a clipped client never tests VSTGUI at all.
+ RECT actualClient{};GetClientRect(hwnd,&actualClient);
+ const int wantW=after.right-after.left,wantH=after.bottom-after.top;
+ if(actualClient.right<int(wantW*.95)||actualClient.bottom<int(wantH*.95)){
+  support->release();
+  std::cerr<<"TEST HOST resize still clipped requested native GUI: "
+           <<actualClient.right<<"x"<<actualClient.bottom
+           <<" vs VST3 "<<wantW<<"x"<<wantH<<"\n";
+  return 98;
+ }
+ std::cout<<"Native 150% HWND and VST3 view agree: "<<actualClient.right
+          <<"x"<<actualClient.bottom<<" requested "<<wantW<<"x"<<wantH<<"\n";
  if(const int result=exerciseNativeMouse(hwnd,controller,1.5)){
   support->release();return result;
  }
