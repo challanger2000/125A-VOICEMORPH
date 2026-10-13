@@ -9,6 +9,7 @@
 #include "base/source/fobject.h"
 #include "pluginterfaces/gui/iplugview.h"
 #include "pluginterfaces/vst/ivstcomponent.h"
+#include "pluginterfaces/vst/ivstaudioprocessor.h"
 #include "pluginterfaces/vst/ivsteditcontroller.h"
 #include "pluginterfaces/vst/ivstmessage.h"
 #include "pluginterfaces/vst/vsttypes.h"
