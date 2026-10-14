@@ -78,3 +78,7 @@ Bis diese Nachweise vorliegen, ist die technische Windows-/Studio-One-Releasefä
 - `CMakeLists.txt:121` — `get_property(vm_test_targets`
 
 - `tests/test_vm_editor_lifecycle.cpp:149` — `class GUIEditBridge`
+
+## Nachtrag zur Windows-Lieferung
+
+Die Windows-Ausführung hat zusätzlich einen SDK-3.8.1-/Visual-Studio-Fehler beim Ressourcen-Kopieren mit Leerzeichen im offiziellen Paketnamen nachgewiesen (Run 38635144881). `vst/CMakeLists.txt` verwendet nun dependency-basierte, mit VERBATIM quotierte Kopien an die vollständigen Bundle-Pfade. Keine nachträgliche Bundle-Umbenennung und keine Änderung der gepinnten SDK-Quellen. Die Windows-Lieferung enthält Installationsanleitung und Commit-/Modulhash-Provenienz. Der aktuelle Actions-Lauf entscheidet über den tatsächlichen Windows-Nachweis.

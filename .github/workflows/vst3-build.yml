@@ -39,7 +39,7 @@ jobs:
             "## Windows compiler failure" | Add-Content $env:GITHUB_STEP_SUMMARY
             '```text' | Add-Content $env:GITHUB_STEP_SUMMARY
             Get-Content "build/windows-compile.log" |
-              Select-String -Pattern "error|fatal|failed" |
+              Select-String -Pattern "error|fatal|(?<!0 )failed" |
               Select-Object -Last 50 | ForEach-Object {
                 $line = $_.Line
                 Write-Host ("::error::" + ($line -replace "%", "%25" -replace "`r", "%0D" -replace "`n", "%0A"))
@@ -100,10 +100,29 @@ jobs:
           path: build/full-qa-reports/
           if-no-files-found: warn
           retention-days: 30
+      - name: Write delivery instructions and build provenance
+        shell: pwsh
+        run: |
+          Copy-Item "docs/INSTALL-WINDOWS.md" "dist/INSTALL-WINDOWS.txt"
+          $binary = "dist/125A VoiceMorph.vst3/Contents/x86_64-win/125A VoiceMorph.vst3"
+          @{
+            commit = (git rev-parse HEAD).Trim()
+            reference_commit = "341fc8bd1a3d4a42e20ed945420a352ffe10708d"
+            version = "0.1.0"
+            platform = "Windows x64"
+            module_sha256 = (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash
+            actions_run = "${{ github.run_id }}"
+            sdk_commit = "3cdf9ca5d1f5b1b21e0a86832aa4abe55607bd96"
+          } | ConvertTo-Json | Set-Content "dist/BUILD-PROVENANCE.json"
       - name: Package VST3 development build
+        id: windows_vst3_package
         uses: actions/upload-artifact@v4
         with:
           name: VoiceMorph-v0.1.0-Windows-x64-DEVELOPMENT
           path: dist/
           if-no-files-found: error
           retention-days: 14
+      - name: Provide Windows package download
+        shell: pwsh
+        run: |
+          Write-Host "::notice title=Windows VST3 download::${{ steps.windows_vst3_package.outputs.artifact-url }}"
