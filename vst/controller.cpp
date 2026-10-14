@@ -17,6 +17,38 @@
 #include <algorithm>
 #include <string>
 namespace Steinberg {
+tresult VMController::queryIRStatus(){
+ auto message=owned(allocateMessage());
+ if(!message)return kResultFalse;
+ message->setMessageID("125A.QueryIRStatus");
+ return sendMessage(message);
+}
+const std::string& VMController::irFilename(int slot) const{
+ static const std::string empty;
+ return slot>=0&&slot<3?irFilenames_[slot]:empty;
+}
+tresult PLUGIN_API VMController::notify(Vst::IMessage* message){
+ if(!message||!message->getMessageID()||
+    std::strcmp(message->getMessageID(),"125A.IRStatus")!=0)
+  return EditControllerEx1::notify(message);
+ auto* attrs=message->getAttributes();
+ if(!attrs)return kInvalidArgument;
+ for(int i=0;i<3;++i){
+  const std::string prefix="ir"+std::to_string(i);
+  int64 status=0,error=0;
+  if(attrs->getInt((prefix+"Status").c_str(),status)!=kResultOk||
+     attrs->getInt((prefix+"Error").c_str(),error)!=kResultOk)return kResultFalse;
+  const void* raw=nullptr;uint32 length=0;
+  if(attrs->getBinary((prefix+"Name").c_str(),raw,length)==kResultOk&&raw&&length<=4096)
+   irFilenames_[i].assign(static_cast<const char*>(raw),length);
+  else irFilenames_[i].clear();
+  const Vst::ParamID statusId[3]={kMicIRStatus,kPreampIRStatus,kReverbIRStatus};
+  const Vst::ParamID errorId[3]={kMicIRError,kPreampIRError,kReverbIRError};
+  setParamNormalized(statusId[i],std::clamp(status,static_cast<int64>(0),static_cast<int64>(3))/3.);
+  setParamNormalized(errorId[i],std::clamp(error,static_cast<int64>(0),static_cast<int64>(5))/5.);
+ }
+ return kResultOk;
+}
 tresult VMController::clearIRFile(int slot){
  if(slot<0||slot>2)return kInvalidArgument;
  auto message=owned(allocateMessage());
