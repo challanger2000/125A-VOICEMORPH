@@ -773,6 +773,72 @@ int exerciseStoppedIRDecodeErrors(IComponent* component,IEditController* control
  return 0;
 }
 
+// Load three actual and distinctly named WAV files from disk while stopped.
+// The worker must commit each original pathname and bytes to the right slot.
+// Capture the running GUI after it has had time to poll those names.
+int exerciseNamedDiskIRs(IComponent* component,IEditController* controller,HWND hwnd){
+ const std::vector<std::uint8_t> wav{
+  'R','I','F','F',38,0,0,0,'W','A','V','E',
+  'f','m','t',' ',16,0,0,0,1,0,1,0,0x80,0xbb,0,0,0,0x77,1,0,2,0,16,0,
+  'd','a','t','a',2,0,0,0,0xff,0x7f
+ };
+ const std::array<std::string,3> names{{
+  "125A_Microphone_Real_WAV.wav",
+  "125A_Preamp_Real_WAV.wav",
+  "125A_Reverb_Real_WAV.wav"
+ }};
+ const auto directory=std::filesystem::temp_directory_path()/"125A-VoiceMorph-IR-QA";
+ std::filesystem::create_directories(directory);
+ std::array<std::string,3> paths{};
+ for(int i=0;i<3;++i){
+  const auto file=directory/names[i];
+  std::ofstream stream(file,std::ios::binary);
+  stream.write(reinterpret_cast<const char*>(wav.data()),
+               static_cast<std::streamsize>(wav.size()));
+  stream.close();
+  if(!stream)return 141;
+  paths[i]=file.u8string();
+ }
+ std::vector<char> data;
+ auto put32=[&](std::uint32_t v){
+  for(int i=0;i<4;++i)data.push_back(static_cast<char>((v>>(8*i))&255));
+ };
+ auto putFloat=[&](float v){std::uint32_t raw=0;std::memcpy(&raw,&v,4);put32(raw);};
+ auto putPath=[&](int slot){
+  put32(static_cast<std::uint32_t>(paths[slot].size()));
+  data.insert(data.end(),paths[slot].begin(),paths[slot].end());
+ };
+ auto emptyBlob=[&](){put32(0);put32(0);};
+ put32(8);
+ for(int i=0;i<23;++i)putFloat(i<2?.5f:0.f);
+ putPath(0);putPath(2);
+ emptyBlob();emptyBlob();
+ putPath(1);emptyBlob();
+ Steinberg::MemoryStream restored(data.data(),static_cast<Steinberg::TSize>(data.size()));
+ if(component->setState(&restored)!=kResultOk)return 142;
+ if(const int result=awaitIRStatusWithoutAudio(controller,2))return result;
+ bool embedded=false;
+ for(int attempt=0;attempt<80;++attempt){
+  Steinberg::MemoryStream saved;
+  if(component->getState(&saved)!=kResultOk)return 143;
+  const auto* begin=static_cast<const char*>(saved.getData());
+  const std::string bytes(begin,begin+saved.getSize());
+  bool all=true;
+  for(const auto& path:paths)
+   all&=bytes.find(path)!=std::string::npos;
+  // The state must now include each worker-imported original WAV.
+  all&=saved.getSize()>=static_cast<Steinberg::TSize>(data.size()+3*wav.size());
+  if(all){embedded=true;break;}
+  pump();
+ }
+ if(!embedded){std::cerr<<"Named IRs not committed to portable state\\n";return 144;}
+ pump();
+ if(!captureEditorBMP(hwnd,"voicemorph-named-ir-100.bmp"))return 145;
+ std::cout<<"Three uniquely named real disk WAVs loaded into their intended slots"
+          <<" with stopped transport PASS\\n";
+ return 0;
+}
+
 // IR GUI command test: use three already-embedded source WAVs, click the
 // actual CLEAR buttons and verify their processor state physically shrinks.
 // This tests GUI -> subcontroller -> VST3 message -> worker -> saved state,
@@ -916,6 +982,7 @@ int probe(const std::filesystem::path& path){
     }
     if(const int result=awaitIRStatusWithoutAudio(controller,0))return result;
     if(const int result=exerciseStoppedIRDecodeErrors(component.get(),controller))return result;
+    if(const int result=exerciseNamedDiskIRs(component.get(),controller,window))return result;
    }
    if(view->removed()!=kResultTrue||view->setFrame(nullptr)!=kResultTrue){
     std::cerr<<"remove/setFrame cleanup FAIL cycle "<<cycle<<"\n";return 14;
