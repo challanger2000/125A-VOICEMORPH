@@ -15,6 +15,13 @@ jobs:
           git clone --branch v3.8.1_build_84 --depth 1 --recursive https://github.com/steinbergmedia/vst3sdk.git external/vst3sdk
           $actual=(git -C external/vst3sdk rev-parse HEAD).Trim()
           if ($actual -ne '3cdf9ca5d1f5b1b21e0a86832aa4abe55607bd96') { throw "Unexpected VST3 SDK SHA: $actual" }
+      - name: Render approved 125A master logo
+        shell: pwsh
+        run: |
+          npm install --no-save --no-package-lock @resvg/resvg-js@2.6.2
+          if ($LASTEXITCODE -ne 0) { throw "Master SVG renderer install failed" }
+          node tools/render-logo.cjs
+          if ($LASTEXITCODE -ne 0) { throw "125A master logo generation failed" }
       - name: Configure
         run: cmake -S . -B build -A x64 -DBUILD_VST3=ON -DVST3_SDK_ROOT="${{ github.workspace }}/external/vst3sdk" -DSMTG_CREATE_PLUGIN_LINK=OFF
       - name: Compile
