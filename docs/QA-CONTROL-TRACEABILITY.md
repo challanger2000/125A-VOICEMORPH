@@ -389,3 +389,17 @@ Native VST3 hosting test of `IComponent::setState/getState` and `IEditController
 **Test-host build issue resolved:** Steinberg `MemoryStream` is declared in `public.sdk/source/common/memorystream.h` but its implementation was not pulled in transitively by existing hosting libraries. The native test target now compiles `public.sdk/source/common/memorystream.cpp` directly. This affects only test code, not the plugin binary or sound.
 
 **Remaining release gates:** native file chooser interactions for all three LOAD buttons and corresponding CLEAR controls in Studio One; IR status changes when host processing is stopped; precise loaded IR filename feedback; screenshot/legibility and UX acceptance at 100% and 150%; full Studio One saved project reopen with native host automation playback, rather than only a VST3 protocol state loop. No FINAL claim from these tests alone.
+
+## Native IR CLEAR button lifecycle with transport stopped (2026-10-14)
+
+**Exact native test source:** `8188ba10fe88b958d467a09db94b69c2401761ee`.
+**Verified GitHub Windows CI:** https://github.com/challanger2000/125A-VOICEMORPH/actions/runs/38545251082
+
+- Native packaged VST3 was loaded and attached to real HWND editor.
+- A complete portable v8 session with all 23 parameters and all three embedded original 46-byte WAV impulse responses was loaded before any editor mouse event.
+- GUI `MIC CLEAR` (ID 1002), `PREAMP CLEAR` (1005), `REVERB CLEAR` (1003) were each clicked with actual Win32 button down/up events at 100% zoom.
+- Without an audio process() callback or transport playing, each independent CLEAR event passed through GUI subcontroller → VST3 message → asynchronous IR worker → stored state. A `getState()` verification confirmed exactly one original 46-byte IR payload disappeared after each click (no other IR was cleared).
+- All three native CLEAR buttons: PASS; 20/20 editor lifecycle, 18/18 wheel/drag/reset/typing at both 100% and 150%, 47/47 Validator, 32/32 unit tests, realtime callback allocation probe PASS.
+- No VoiceDSP, mix algorithms, B1 correction, preset tone, resources or parameter IDs were modified; this is a QA-only update.
+
+**Still unverified:** GUI LOAD file chooser with actual supported/invalid user WAV files (3 slots); unambiguous loaded IR filenames in GUI; LIVE `READY/ERROR` refresh when audio processing is stopped (parameter reports currently occur via positive-length process blocks); actual DAW project automation and visual acceptance in Studio One.
