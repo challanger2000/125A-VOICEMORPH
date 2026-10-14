@@ -63,27 +63,52 @@ void pump(){
 // Reproducible capture of the actual attached native Windows editor.
 // Screenshots are QA evidence, not generated mockups.
 bool captureEditorBMP(HWND host,const char* name){
- RECT rect{};GetClientRect(host,&rect);
- const int w=rect.right,h=rect.bottom;
+ RECT client{};GetClientRect(host,&client);
+ const int w=client.right,h=client.bottom;
  if(w<=0||h<=0||w>4096||h>4096)return false;
- HDC screen=GetDC(host);
+ RECT work{};
+ if(!SystemParametersInfoW(SPI_GETWORKAREA,0,&work,0))return false;
+ const int tileW=work.right-work.left,tileH=work.bottom-work.top;
+ if(tileW<100||tileH<100)return false;
+ RECT original{};GetWindowRect(host,&original);
+ POINT clientOrigin{0,0};ClientToScreen(host,&clientOrigin);
+ const int offsetX=clientOrigin.x-original.left;
+ const int offsetY=clientOrigin.y-original.top;
+ std::vector<std::uint8_t> pixels(static_cast<std::size_t>(w)*h*4);
+ HDC screen=GetDC(nullptr);
  HDC mem=CreateCompatibleDC(screen);
  HBITMAP bmp=CreateCompatibleBitmap(screen,w,h);
- if(!mem||!bmp){if(bmp)DeleteObject(bmp);if(mem)DeleteDC(mem);ReleaseDC(host,screen);return false;}
- HGDIOBJ prev=SelectObject(mem,bmp);
- const BOOL captured=PrintWindow(host,mem,PW_CLIENTONLY);
- if(!captured)BitBlt(mem,0,0,w,h,screen,0,0,SRCCOPY);
+ if(!screen||!mem||!bmp){
+  if(bmp)DeleteObject(bmp);
+  if(mem)DeleteDC(mem);
+  if(screen)ReleaseDC(nullptr,screen);
+  return false;
+ }
+ HGDIOBJ old=SelectObject(mem,bmp);
+ bool ok=true;
+ for(int y=0;y<h&&ok;y+=tileH){
+  for(int x=0;x<w&&ok;x+=tileW){
+   // Move the native host so this tile is visible within the desktop.
+   // Capture the actual composed screen, not PrintWindow's incomplete
+   // offscreen VSTGUI image.
+   SetWindowPos(host,HWND_TOP,work.left-offsetX-x,work.top-offsetY-y,
+                0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
+   UpdateWindow(host);
+   pump();
+   const int cw=std::min(tileW,w-x),ch=std::min(tileH,h-y);
+   ok=BitBlt(mem,x,y,cw,ch,screen,work.left,work.top,SRCCOPY|CAPTUREBLT)!=FALSE;
+  }
+ }
+ SetWindowPos(host,nullptr,original.left,original.top,0,0,
+              SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
  BITMAPINFO info{};
  info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
- info.bmiHeader.biWidth=w;
- info.bmiHeader.biHeight=-h;
- info.bmiHeader.biPlanes=1;
- info.bmiHeader.biBitCount=32;
+ info.bmiHeader.biWidth=w;info.bmiHeader.biHeight=-h;
+ info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;
  info.bmiHeader.biCompression=BI_RGB;
- std::vector<std::uint8_t> pixels(static_cast<std::size_t>(w)*h*4);
- SelectObject(mem,prev); // GetDIBits requires bitmap deselected from a DC.
- const int rows=GetDIBits(mem,bmp,0,h,pixels.data(),&info,DIB_RGB_COLORS);
- DeleteObject(bmp);DeleteDC(mem);ReleaseDC(host,screen);
+ SelectObject(mem,old);
+ const int rows=ok?GetDIBits(mem,bmp,0,h,pixels.data(),&info,DIB_RGB_COLORS):0;
+ DeleteObject(bmp);DeleteDC(mem);ReleaseDC(nullptr,screen);
  if(rows!=h)return false;
  std::filesystem::create_directories("qa-screenshots");
  std::ofstream file(std::string("qa-screenshots/")+name,std::ios::binary);
