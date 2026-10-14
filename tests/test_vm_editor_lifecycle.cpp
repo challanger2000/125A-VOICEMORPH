@@ -24,6 +24,10 @@
 #include <vector>
 #include <cstdint>
 #include <cstring>
+#include <atomic>
+#include <thread>
+#include <cwchar>
+#include <utility>
 using namespace Steinberg;
 using namespace Steinberg::Vst;
 using namespace VST3::Hosting;
@@ -568,6 +572,57 @@ int checkRealProjectRecall(IComponent* component,IEditController* controller){
 }
 
 
+// Exercise the real native file chooser on each LOAD button. A separate
+// Win32 observer closes the modal dialog; no audio callback is run.
+// This proves the GUI button opens its own OS picker but DOES NOT prove
+// successful WAV selection or READY/error feedback.
+struct DialogObserver {
+ const wchar_t* title;
+ HWND found=nullptr;
+};
+BOOL CALLBACK findIRDialog(HWND hwnd,LPARAM arg){
+ auto& observer=*reinterpret_cast<DialogObserver*>(arg);
+ wchar_t title[256]{};
+ if(!IsWindowVisible(hwnd) || !GetWindowTextW(hwnd,title,256))return TRUE;
+ if(wcsstr(title,observer.title)){
+  observer.found=hwnd;
+  return FALSE;
+ }
+ return TRUE;
+}
+int exerciseNativeIRLoadDialogs(HWND hwnd){
+ const std::array<std::pair<Widget,const wchar_t*>,3> buttons{{
+  {{1000,402,147,100,27},L"Load Microphone IR WAV"},
+  {{1004,698,147,100,27},L"Load Preamp IR WAV"},
+  {{1001,190,495,85,27},L"Load Reverb IR WAV"}
+ }};
+ for(const auto& entry:buttons){
+  std::atomic<bool> found{false};
+  std::thread observer([&]{
+   for(int attempt=0;attempt<250;++attempt){
+    DialogObserver seen{entry.second};
+    EnumWindows(findIRDialog,reinterpret_cast<LPARAM>(&seen));
+    if(seen.found){
+     found.store(true,std::memory_order_release);
+     PostMessageW(seen.found,WM_CLOSE,0,0);
+     return;
+    }
+    Sleep(20);
+   }
+  });
+  const auto& b=entry.first;
+  mouseAction(hwnd,b.x+b.w/2,b.y+b.h/2,true);
+  mouseAction(hwnd,b.x+b.w/2,b.y+b.h/2,false);
+  observer.join();
+  if(!found.load(std::memory_order_acquire)){
+   std::cerr<<"Native LOAD picker not observed for tag "<<b.id<<"\\n";
+   return 135;
+  }
+  std::cout<<"Native IR LOAD picker "<<b.id<<" opened and cancelled PASS\\n";
+ }
+ return 0;
+}
+
 // IR GUI command test: use three already-embedded source WAVs, click the
 // actual CLEAR buttons and verify their processor state physically shrinks.
 // This tests GUI -> subcontroller -> VST3 message -> worker -> saved state,
@@ -697,6 +752,10 @@ int probe(const std::filesystem::path& path){
    if(cycle==0){
     if(const int result=exerciseNativeScalingAndControls(view,window,controller)){
      std::cerr<<"GUI actual mouse/scale test failure: "<<result<<"\n";
+     return result;
+    }
+    if(const int result=exerciseNativeIRLoadDialogs(window)){
+     std::cerr<<"Native GUI IR LOAD picker test failure "<<result<<"\\n";
      return result;
     }
     if(const int result=exerciseNativeIRClears(window,component.get())){
