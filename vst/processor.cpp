@@ -132,8 +132,10 @@ tresult PLUGIN_API VMProcessor::notify(Vst::IMessage* message){
    const bool embedded[3]={static_cast<bool>(micStateSource),
                            static_cast<bool>(preampStateSource),
                            static_cast<bool>(reverbStateSource)};
-   for(int i=0;i<3;++i)
-    if(names[i].empty()&&embedded[i])names[i]="[Embedded IR]";
+   for(int i=0;i<3;++i){
+    if(names[i].empty())
+     names[i]=embedded[i]?"[Embedded IR]":"NO IR";
+   }
   }
   auto reply=owned(allocateMessage());
   if(!reply)return kResultFalse;
