@@ -577,32 +577,37 @@ int checkRealProjectRecall(IComponent* component,IEditController* controller){
 // This proves the GUI button opens its own OS picker but DOES NOT prove
 // successful WAV selection or READY/error feedback.
 struct DialogObserver {
- const wchar_t* title;
+ HWND host=nullptr;
  HWND found=nullptr;
 };
-BOOL CALLBACK findIRDialog(HWND hwnd,LPARAM arg){
+BOOL CALLBACK findIRDialog(HWND window,LPARAM arg){
  auto& observer=*reinterpret_cast<DialogObserver*>(arg);
- wchar_t title[256]{};
- if(!IsWindowVisible(hwnd) || !GetWindowTextW(hwnd,title,256))return TRUE;
- if(wcsstr(title,observer.title)){
-  observer.found=hwnd;
-  return FALSE;
+ if(window==observer.host||!IsWindowVisible(window))return TRUE;
+ // Windows common picker is normally an owned top-level dialog. Matching
+ // by owner instead of localized title also handles the system "Open" UI.
+ if(GetWindow(window,GW_OWNER)==observer.host){
+  wchar_t klass[128]{};
+  GetClassNameW(window,klass,128);
+  if(wcscmp(klass,L"#32770")==0){
+   observer.found=window;
+   return FALSE;
+  }
  }
  return TRUE;
 }
 int exerciseNativeIRLoadDialogs(HWND hwnd){
- const std::array<std::pair<Widget,const wchar_t*>,3> buttons{{
-  {{1000,402,147,100,27},L"Load Microphone IR WAV"},
-  {{1004,698,147,100,27},L"Load Preamp IR WAV"},
-  {{1001,190,495,85,27},L"Load Reverb IR WAV"}
+ const std::array<Widget,3> buttons{{
+  {1000,402,147,100,27},
+  {1004,698,147,100,27},
+  {1001,190,495,85,27}
  }};
- for(const auto& entry:buttons){
+ for(const auto& b:buttons){
   std::atomic<bool> found{false};
   std::thread observer([&]{
-   // The picker can block the GUI message thread. Never depend on that
-   // thread to execute the timeout or cancellation logic.
+   // Native runModal() may block the GUI event on its own modal loop.
+   // A separate observer must dismiss it without waiting on the UI thread.
    for(int attempt=0;attempt<250;++attempt){
-    DialogObserver seen{entry.second};
+    DialogObserver seen{hwnd};
     EnumWindows(findIRDialog,reinterpret_cast<LPARAM>(&seen));
     if(seen.found){
      found.store(true,std::memory_order_release);
@@ -611,25 +616,24 @@ int exerciseNativeIRLoadDialogs(HWND hwnd){
     }
     Sleep(20);
    }
-   // Fail-safe: close any modal window owned by this test host, even if
-   // the native picker uses a localized or unexpected window title.
+   // Timeout fallback: cancel owned dialogs regardless of window class.
+   // If the provider has no owned window, the external CI job timeout is
+   // the final safeguard; do not record a false PASS.
    EnumWindows([](HWND window,LPARAM arg)->BOOL{
-    HWND owner=reinterpret_cast<HWND>(arg);
-    if(window!=owner && GetWindow(window,GW_OWNER)==owner &&
-       IsWindowVisible(window))
-      PostMessageW(window,WM_CLOSE,0,0);
+    auto owner=reinterpret_cast<HWND>(arg);
+    if(window!=owner&&GetWindow(window,GW_OWNER)==owner&&IsWindowVisible(window))
+     PostMessageW(window,WM_CLOSE,0,0);
     return TRUE;
    },reinterpret_cast<LPARAM>(hwnd));
   });
-  const auto& b=entry.first;
   mouseAction(hwnd,b.x+b.w/2,b.y+b.h/2,true);
   mouseAction(hwnd,b.x+b.w/2,b.y+b.h/2,false);
   observer.join();
   if(!found.load(std::memory_order_acquire)){
-   std::cerr<<"Native LOAD picker not observed for tag "<<b.id<<"\\n";
+   std::cerr<<"Native LOAD picker not observed for tag "<<b.id<<"\n";
    return 135;
   }
-  std::cout<<"Native IR LOAD picker "<<b.id<<" opened and cancelled PASS\\n";
+  std::cout<<"Native IR LOAD picker "<<b.id<<" opened and cancelled PASS\n";
  }
  return 0;
 }
