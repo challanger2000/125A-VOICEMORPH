@@ -115,6 +115,40 @@ void VMProcessor::irWorkerLoop(){
 }
 tresult PLUGIN_API VMProcessor::notify(Vst::IMessage* message){
  if(!message||!message->getMessageID())return AudioEffect::notify(message);
+ if(std::strcmp(message->getMessageID(),"125A.QueryIRStatus")==0){
+  // UI-thread request/reply only. Never send VST3 connection messages
+  // from the asynchronous IR worker or from the audio callback.
+  std::array<int64,3> statuses{},errors{};
+  std::array<std::string,3> names{};
+  {
+   std::lock_guard<std::mutex> lock(irJobMutex);
+   statuses={micIRStatus.load(std::memory_order_acquire),
+             preampIRStatus.load(std::memory_order_acquire),
+             reverbIRStatus.load(std::memory_order_acquire)};
+   errors={micIRError.load(std::memory_order_acquire),
+           preampIRError.load(std::memory_order_acquire),
+           reverbIRError.load(std::memory_order_acquire)};
+   names={micStatePath,preampStatePath,reverbStatePath};
+   const bool embedded[3]={static_cast<bool>(micStateSource),
+                           static_cast<bool>(preampStateSource),
+                           static_cast<bool>(reverbStateSource)};
+   for(int i=0;i<3;++i)
+    if(names[i].empty()&&embedded[i])names[i]="[Embedded IR]";
+  }
+  auto reply=owned(allocateMessage());
+  if(!reply)return kResultFalse;
+  reply->setMessageID("125A.IRStatus");
+  auto* attrs=reply->getAttributes();
+  if(!attrs)return kResultFalse;
+  for(int i=0;i<3;++i){
+   const std::string prefix="ir"+std::to_string(i);
+   if(attrs->setInt((prefix+"Status").c_str(),statuses[i])!=kResultOk||
+      attrs->setInt((prefix+"Error").c_str(),errors[i])!=kResultOk||
+      attrs->setBinary((prefix+"Name").c_str(),names[i].data(),
+         static_cast<uint32>(names[i].size()))!=kResultOk)return kResultFalse;
+  }
+  return sendMessage(reply);
+ }
  const bool clear=std::strcmp(message->getMessageID(),"125A.ClearIR")==0;
  if(!clear&&std::strcmp(message->getMessageID(),"125A.LoadIR")!=0)
   return AudioEffect::notify(message);
