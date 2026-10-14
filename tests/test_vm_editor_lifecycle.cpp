@@ -28,6 +28,7 @@
 #include <thread>
 #include <cwchar>
 #include <utility>
+#include <fstream>
 using namespace Steinberg;
 using namespace Steinberg::Vst;
 using namespace VST3::Hosting;
@@ -58,6 +59,41 @@ void pump(){
   }
   Sleep(8);
  }
+}
+// Reproducible capture of the actual attached native Windows editor.
+// Screenshots are QA evidence, not generated mockups.
+bool captureEditorBMP(HWND host,const char* name){
+ RECT rect{};GetClientRect(host,&rect);
+ const int w=rect.right,h=rect.bottom;
+ if(w<=0||h<=0||w>4096||h>4096)return false;
+ HDC screen=GetDC(host);
+ HDC mem=CreateCompatibleDC(screen);
+ HBITMAP bmp=CreateCompatibleBitmap(screen,w,h);
+ if(!mem||!bmp){if(bmp)DeleteObject(bmp);if(mem)DeleteDC(mem);ReleaseDC(host,screen);return false;}
+ HGDIOBJ prev=SelectObject(mem,bmp);
+ const BOOL captured=PrintWindow(host,mem,PW_CLIENTONLY);
+ if(!captured)BitBlt(mem,0,0,w,h,screen,0,0,SRCCOPY);
+ BITMAPINFO info{};
+ info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
+ info.bmiHeader.biWidth=w;
+ info.bmiHeader.biHeight=-h;
+ info.bmiHeader.biPlanes=1;
+ info.bmiHeader.biBitCount=32;
+ info.bmiHeader.biCompression=BI_RGB;
+ std::vector<std::uint8_t> pixels(static_cast<std::size_t>(w)*h*4);
+ const int rows=GetDIBits(mem,bmp,0,h,pixels.data(),&info,DIB_RGB_COLORS);
+ SelectObject(mem,prev);DeleteObject(bmp);DeleteDC(mem);ReleaseDC(host,screen);
+ if(rows!=h)return false;
+ std::filesystem::create_directories("qa-screenshots");
+ std::ofstream file(std::string("qa-screenshots/")+name,std::ios::binary);
+ BITMAPFILEHEADER header{};
+ header.bfType=0x4d42;
+ header.bfOffBits=sizeof(BITMAPFILEHEADER)+sizeof(BITMAPINFOHEADER);
+ header.bfSize=header.bfOffBits+static_cast<DWORD>(pixels.size());
+ file.write(reinterpret_cast<const char*>(&header),sizeof(header));
+ file.write(reinterpret_cast<const char*>(&info.bmiHeader),sizeof(info.bmiHeader));
+ file.write(reinterpret_cast<const char*>(pixels.data()),static_cast<std::streamsize>(pixels.size()));
+ return file.good();
 }
 class HostFrame final:public FObject,public IPlugFrame {
  HWND hwnd_;
@@ -469,6 +505,7 @@ int exerciseNativeScalingAndControls(IPlugView* view,HWND hwnd,IEditController* 
            <<" vs VST3 "<<wantW<<"x"<<wantH<<"\n";
   return 98;
  }
+ if(!captureEditorBMP(hwnd,"voicemorph-150.bmp"))return 139;
  std::cout<<"Native 150% HWND and VST3 view agree: "<<actualClient.right
           <<"x"<<actualClient.bottom<<" requested "<<wantW<<"x"<<wantH<<"\n";
  if(const int result=exerciseNativeMouse(hwnd,controller,1.5)){
@@ -835,6 +872,7 @@ int probe(const std::filesystem::path& path){
     std::cerr<<"attached(HWND) FAIL cycle "<<cycle<<"\n";return 13;
    }
    ShowWindow(window,SW_SHOWNA);UpdateWindow(window);pump();
+   if(cycle==0&&!captureEditorBMP(window,"voicemorph-100.bmp"))return 140;
    view->onFocus(true);view->onFocus(false);pump();
    if(cycle==0){
     if(const int result=exerciseNativeScalingAndControls(view,window,controller)){
