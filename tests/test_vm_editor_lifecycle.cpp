@@ -661,6 +661,55 @@ int awaitIRStatusWithoutAudio(IEditController* controller,int expected){
  return 136;
 }
 
+// Full controller/processor ERROR feedback without audio processing.
+// Embed a checksum-valid RIFF/WAVE envelope that is too short to decode.
+// setState validates envelope/CRC; the worker must reject the actual audio,
+// then the GUI timer must report ERROR for each of the three slots.
+int exerciseStoppedIRDecodeErrors(IComponent* component,IEditController* controller){
+ std::vector<std::uint8_t> bad{'R','I','F','F',4,0,0,0,'W','A','V','E'};
+ std::uint32_t crc=0xffffffffu;
+ for(auto byte:bad){
+  crc^=byte;
+  for(int i=0;i<8;++i)
+   crc=(crc>>1)^(0xedb88320u&static_cast<std::uint32_t>(
+    -static_cast<std::int32_t>(crc&1u)));
+ }
+ crc=~crc;
+ std::vector<char> state;
+ auto write32=[&](std::uint32_t v){
+  for(int n=0;n<4;++n)state.push_back(static_cast<char>((v>>(n*8))&255));
+ };
+ auto writeFloat=[&](float f){
+  std::uint32_t v=0;std::memcpy(&v,&f,sizeof(v));write32(v);
+ };
+ auto path=[&](){write32(0);};
+ auto blob=[&](){
+  write32(static_cast<std::uint32_t>(bad.size()));
+  write32(crc);
+  state.insert(state.end(),bad.begin(),bad.end());
+ };
+ write32(8);
+ for(int i=0;i<23;++i)writeFloat(i<2?.5f:0.f);
+ path();path();blob();blob();path();blob();
+ Steinberg::MemoryStream stream(state.data(),
+                                static_cast<Steinberg::TSize>(state.size()));
+ if(component->setState(&stream)!=kResultOk){
+  std::cerr<<"Malformed embedded IR test state rejected before worker\\n";
+  return 137;
+ }
+ if(const int result=awaitIRStatusWithoutAudio(controller,3))return result;
+ const std::array<ParamID,3> errorIds{{206u,209u,207u}};
+ for(const auto id:errorIds){
+  if(controller->getParamNormalized(id)<=0.){
+   std::cerr<<"IR worker ERROR code missing in stopped GUI "<<id<<"\\n";
+   return 138;
+  }
+ }
+ std::cout<<"Native stopped-transport IR ERROR with invalid embedded WAV"
+          <<" all three slots PASS\\n";
+ return 0;
+}
+
 // IR GUI command test: use three already-embedded source WAVs, click the
 // actual CLEAR buttons and verify their processor state physically shrinks.
 // This tests GUI -> subcontroller -> VST3 message -> worker -> saved state,
@@ -802,6 +851,7 @@ int probe(const std::filesystem::path& path){
      return result;
     }
     if(const int result=awaitIRStatusWithoutAudio(controller,0))return result;
+    if(const int result=exerciseStoppedIRDecodeErrors(component.get(),controller))return result;
    }
    if(view->removed()!=kResultTrue||view->setFrame(nullptr)!=kResultTrue){
     std::cerr<<"remove/setFrame cleanup FAIL cycle "<<cycle<<"\n";return 14;
