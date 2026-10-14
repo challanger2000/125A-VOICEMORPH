@@ -70,7 +70,8 @@ int main(int argc,char** argv){
  // Binary controls are clickable and separately expose a readable state.
  assert(has(ui,"title=\"VOICE BYPASS\" control-tag=\"P109\" default-value=\"0\" kick-style=\"false\""));
  assert(has(ui,"title=\"B1 EQ\" control-tag=\"P119\" default-value=\"1\" kick-style=\"false\""));
- assert(count(ui,"control-tag=\"P109\"")==2);
+ assert(count(ui,"control-tag=\"P109\"")==1);
+ assert(has(ui,"title=\"ON\" control-tag=\"VoiceActiveStatus\""));
  assert(count(ui,"control-tag=\"P119\"")==2);
  assert(has(ui,"sub-controller=\"VoicePresets\""));
  assert(count(ui,"control-tag=\"Hollywood\"")==1);
