@@ -1,0 +1,55 @@
+name: Publish approved 125A VoiceMorph V1 FINAL
+on:
+  push:
+    branches: [develop/v1.0.0]
+    paths: [.github/workflows/publish-v1-final.yml]
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish-final:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Pin reviewed commit and assert QA provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED=7eed208bf8d7694b18f0fd8d1655af3da666083b
+          REPO=challanger2000/125A-VOICEMORPH
+          test "$(gh api repos/$REPO/actions/runs/38639627047 --jq '.head_sha')" = "$EXPECTED"
+          test "$(gh api repos/$REPO/actions/runs/38639627047 --jq '.conclusion')" = success
+          if gh release view v1.0.0 --repo "$REPO" >/dev/null 2>&1; then
+            echo 'v1.0.0 release already exists, refusing to overwrite it'
+            exit 1
+          fi
+          if gh api repos/$REPO/git/ref/tags/v1.0.0 >/dev/null 2>&1; then
+            echo 'v1.0.0 tag already exists, refusing to repoint'
+            exit 1
+          fi
+      - name: Download exactly verified shipping bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPO=challanger2000/125A-VOICEMORPH
+          gh run download 38639627047 --repo "$REPO" --name VoiceMorph-v0.1.0-Windows-x64-DEVELOPMENT --dir package
+          test -f 'package/125A VoiceMorph.vst3/Contents/x86_64-win/125A VoiceMorph.vst3'
+          test -f 'package/125A VoiceMorph.vst3/Contents/Resources/voicemorph.uidesc'
+          cd package
+          zip -qr '../125A_VoiceMorph_V1.0.0_FINAL_Windows_x64.zip' '125A VoiceMorph.vst3'
+      - name: Publish immutable FINAL release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create v1.0.0 '125A_VoiceMorph_V1.0.0_FINAL_Windows_x64.zip' \
+            --repo challanger2000/125A-VOICEMORPH \
+            --target 7eed208bf8d7694b18f0fd8d1655af3da666083b \
+            --title '125A VoiceMorph V1.0.0 FINAL' \
+            --notes 'Windows x64 VST3. Source commit 7eed208bf8d7694b18f0fd8d1655af3da666083b. Windows build #38639627047 PASS; Steinberg validator 47/47 PASS; 125A Plugin Tester 46 PASS, 0 WARNING, 0 FAIL on staged shipping bundle. Studio One user acceptance reported satisfactory. Plugin bundle and inner module both 125A VoiceMorph.vst3.'
