@@ -35,6 +35,7 @@ public:
  tresult PLUGIN_API notify(Vst::IMessage*) SMTG_OVERRIDE;
  tresult PLUGIN_API setupProcessing(Vst::ProcessSetup&) SMTG_OVERRIDE;
  tresult PLUGIN_API setProcessing(TBool state) SMTG_OVERRIDE;
+ tresult PLUGIN_API setActive(TBool state) SMTG_OVERRIDE;
  tresult PLUGIN_API canProcessSampleSize(int32) SMTG_OVERRIDE;
  tresult PLUGIN_API setBusArrangements(
   Vst::SpeakerArrangement* inputs,int32 numIns,
@@ -84,6 +85,7 @@ private:
  };
  std::atomic<PreparedRestore*> pendingRestore{nullptr},retiredRestore{nullptr};
  bool startedAudio=false;
+ std::atomic<bool> componentActive{false};
  bool adoptRestoreAudio() noexcept;
  void irWorkerLoop();
  void queueIRJob(std::string path,int slot);

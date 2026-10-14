@@ -140,6 +140,31 @@ static void recall(const char* path){
   else (void)a.render<double>(rate==44100?48000:44100,64,4096);
  }
 }
+static void inactiveRecall(const char* path){
+ // Unchanged-rate project recall on both an incompletely filled and a
+ // warmed instance must be equivalent to a fresh instance, without setup.
+ for(int rate:{44100,48000})for(int format:{kSample32,kSample64})for(int oldFrames:{512,8192}){
+  Plugin reused(path);reused.setup(rate,format);auto previous=defaults();
+  previous[2]=.35f;previous[3]=.42f;previous[4]=.35f;previous[6]=.23f;
+  previous[7]=.32f;previous[8]=.08f;previous[17]=.5f;previous[18]=.5f;
+  CHECK(reused.restore(state(previous,rate))==kResultOk);reused.start();
+  if(format==kSample32)(void)reused.render<float>(rate,64,oldFrames);
+  else (void)reused.render<double>(rate,64,oldFrames);
+  reused.stop();const auto empty=state(defaults(),rate,false);
+  CHECK(reused.restore(empty)==kResultOk);
+  Plugin fresh(path);fresh.setup(rate,format);
+  CHECK(fresh.restore(empty)==kResultOk);fresh.start();reused.start();
+  if(format==kSample32){
+   const auto expected=fresh.render<float>(rate,32,8192,2,2,true);
+   const auto recalled=reused.render<float>(rate,32,8192,2,2,true);
+   CHECK(recalled==expected);
+  }else{
+   const auto expected=fresh.render<double>(rate,32,8192,2,2,true);
+   const auto recalled=reused.render<double>(rate,32,8192,2,2,true);
+   CHECK(recalled==expected);
+  }
+ }
+}
 static void controls(const char* path){
  Plugin a(path);a.setup(48000,kSample32);
  const auto empty=state(defaults(),48000,false);CHECK(a.restore(empty)==kResultOk);a.start();
@@ -204,7 +229,7 @@ int main(int argc,char** argv){
 #ifdef _WIN32
  if(FAILED(CoInitialize(nullptr)))return 2;
 #endif
- int result=0;try {recall(argv[1]);controls(argv[1]);stoppedClear(argv[1]);buses(argv[1]);std::cout<<"Actual VST3: immediate audio recall, corruption rejection, rates, 32/64-bit, all controls, metering and buses PASS\n";}
+ int result=0;try {recall(argv[1]);inactiveRecall(argv[1]);controls(argv[1]);stoppedClear(argv[1]);buses(argv[1]);std::cout<<"Actual VST3: immediate audio recall, corruption rejection, rates, 32/64-bit, all controls, metering and buses PASS\n";}
  catch(const std::exception& e){std::cerr<<e.what()<<"\n";result=1;}
 #ifdef _WIN32
  CoUninitialize();

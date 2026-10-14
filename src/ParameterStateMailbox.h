@@ -14,7 +14,7 @@ template<std::size_t N> class ParameterStateMailbox {
  std::array<std::atomic<float>,N> automation_{};
  std::array<std::atomic<std::uint64_t>,N> automationRevision_{};
  std::atomic<std::uint64_t> seq_{0}; // even = published, odd = writer busy
- std::uint64_t consumed_=0;         // audio thread only
+ std::uint64_t consumed_=0;         // audio thread, or inactive SDK lifecycle only
 public:
  void initialize(const float* initial) noexcept {
   for(std::size_t i=0;i<N;++i){

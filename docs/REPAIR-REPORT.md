@@ -84,3 +84,9 @@ Bis diese Nachweise vorliegen, ist die technische Windows-/Studio-One-Releasefä
 Die Windows-Ausführung hat zusätzlich einen SDK-3.8.1-/Visual-Studio-Fehler beim Ressourcen-Kopieren mit Leerzeichen im offiziellen Paketnamen nachgewiesen (Run 38635144881). `vst/CMakeLists.txt` verwendet nun dependency-basierte, mit VERBATIM quotierte Kopien an die vollständigen Bundle-Pfade. Keine nachträgliche Bundle-Umbenennung und keine Änderung der gepinnten SDK-Quellen. Die Windows-Lieferung enthält Installationsanleitung und Commit-/Modulhash-Provenienz. Der aktuelle Actions-Lauf entscheidet über den tatsächlichen Windows-Nachweis.
 
 Der erste Windows-Modultest scheiterte vor dem Laden an einer nicht ausgewerteten verschachtelten CMake-Konfiguration im Testpfad (Run 38637581721). TARGET_GENEX_EVAL korrigiert den Testpfad; Ladefehler enthalten nun zusätzlich SDK-Ursache und vollständigen Pfad. Das ist eine Testkonfigurationskorrektur, keine Abschwächung der Audio-/State-Prüfungen.
+
+## Zusätzlicher nachgewiesener State-Fehler
+
+**Hoch:** Inaktive Wiederherstellung auf einer bereits benutzten Instanz ohne erneutes setupProcessing ließ alte Delay-/Filter-/Spektralhistorien bestehen. Der tatsächliche Modulvergleich zu einer frischen Instanz scheiterte vor der Korrektur (`recalled==expected`). Der Processor verfolgt jetzt den SDK-Komponenten-Aktivzustand und installiert vollständig vorbereitete States bei inaktiver, bereits konfigurierter Instanz direkt auf dem Lifecycle-Thread; Historien und Meter werden dabei zurückgesetzt. Aktiver Restore bleibt eine Audio-Transaktion mit Überblendungen; ein bloßer Transportstopp bleibt ohne Reset.
+
+Der neue Test `inactiveRecall` prüft 44,1/48 kHz, float32/float64, teilweise gefüllte und warme Instanzen einschließlich voriger Pitch-/Formant-/Voice-/IR-Verarbeitung. Neues Projekt-Audio muss ohne erneutes Setup samplegenau einer frischen Instanz entsprechen. Lokal bestanden; Windows-Nachweis erfolgt im zugehörigen CI-Lauf.

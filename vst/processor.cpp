@@ -319,6 +319,11 @@ bool VMProcessor::adoptRestoreAudio() noexcept {
 // All buffers and IR workers are prepared by setupProcessing(); transport
 // start/stop needs no allocation, lock, audio reset or DSP coefficient change.
 // In particular, keep reverb tails alive when a host briefly pauses processing.
+tresult PLUGIN_API VMProcessor::setActive(TBool state){
+ const auto result=AudioEffect::setActive(state);
+ if(result==kResultOk)componentActive.store(state!=0,std::memory_order_release);
+ return result;
+}
 tresult PLUGIN_API VMProcessor::setProcessing(TBool /*state*/){
  return kResultOk;
 }
@@ -713,7 +718,23 @@ tresult PLUGIN_API VMProcessor::setState(IBStream* stream) try {
     std::fabs(next[kFormant-kInput]-4.f/7.f)>1.e-5f;
    if(restoredVoice)voiceFiltersActive.store(true,std::memory_order_release);
    restored->revision=stateMailbox.publish(next);
-   delete pendingRestore.exchange(restored.release(),std::memory_order_acq_rel);
+   if(!componentActive.load(std::memory_order_acquire)&&hostRate!=0.){
+    // SDK lifecycle guarantees no audio callback while inactive. Project
+    // recall on a reused instance must not retain the previous project's
+    // delay/filter/spectral histories or wait for an old audio crossfade.
+    delete pendingRestore.exchange(nullptr,std::memory_order_acq_rel);
+    delete retiredRestore.exchange(nullptr,std::memory_order_acq_rel);
+    vm::IRStageHandoff* handoffs[3]={&micHandoff,&preampHandoff,&reverbHandoff};
+    for(int slot=0;slot<3;++slot)handoffs[slot]->replaceStoppedControl(std::move(restored->stages[slot]));
+    std::copy(restored->parameters.begin(),restored->parameters.end(),params);
+    stateMailbox.acceptAudioRevision(restored->revision);
+    for(auto& d:dsp)d.prepare(hostRate);
+    fixedIRChain.reset();startedAudio=false;
+    voiceFiltersActive.store(false,std::memory_order_relaxed);
+    apply();pitchEngine.reset();b1Correction.prepare(hostRate);
+    for(int ch=0;ch<4;++ch){meterDisplay[ch]=meterHeld[ch]=0;meterHoldSeconds[ch]=0;}
+    clipHoldSeconds[0]=clipHoldSeconds[1]=0;
+   }else delete pendingRestore.exchange(restored.release(),std::memory_order_acq_rel);
   }
  }catch(const std::exception&){return kResultFalse;}
  return kResultOk;
