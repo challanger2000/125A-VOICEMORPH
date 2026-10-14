@@ -102,6 +102,21 @@ public:
   if(timer_){timer_->stop();timer_->forget();}
  }
 };
+class VoiceActiveLabel final : public VSTGUI::CTextLabel {
+ Steinberg::VMController* owner_;
+ VSTGUI::CVSTGUITimer* timer_;
+public:
+ VoiceActiveLabel(const VSTGUI::CTextLabel& source, Steinberg::VMController* owner)
+  :CTextLabel(source),owner_(owner),timer_(nullptr){
+  setText("ON");
+  timer_=new VSTGUI::CVSTGUITimer([this](VSTGUI::CVSTGUITimer*){
+   if(owner_)setText(owner_->getParamNormalized(Steinberg::kBypass)>=.5?"OFF":"ON");
+  },100);
+ }
+ ~VoiceActiveLabel() noexcept override {
+  if(timer_){timer_->stop();timer_->forget();}
+ }
+};
 class VoiceWheelSlider final : public VSTGUI::CSlider {
 public:
  explicit VoiceWheelSlider(const VSTGUI::CSlider& source):CSlider(source){}
@@ -161,6 +176,11 @@ VSTGUI::CView* VMController::verifyView(VSTGUI::CView* view,
  VSTGUI::VST3Editor*){
  if(auto* label=dynamic_cast<VSTGUI::CTextLabel*>(view)){
   const int tag=label->getTag();
+  if(tag==313){
+   auto* adapted=new VoiceActiveLabel(*label,this);
+   label->forget();
+   return adapted;
+  }
   if(tag>=310&&tag<=312){
    auto* adapted=new IRFilenameLabel(*label,this,tag-310);
    label->forget();
