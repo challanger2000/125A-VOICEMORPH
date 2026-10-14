@@ -81,8 +81,9 @@ bool captureEditorBMP(HWND host,const char* name){
  info.bmiHeader.biBitCount=32;
  info.bmiHeader.biCompression=BI_RGB;
  std::vector<std::uint8_t> pixels(static_cast<std::size_t>(w)*h*4);
+ SelectObject(mem,prev); // GetDIBits requires bitmap deselected from a DC.
  const int rows=GetDIBits(mem,bmp,0,h,pixels.data(),&info,DIB_RGB_COLORS);
- SelectObject(mem,prev);DeleteObject(bmp);DeleteDC(mem);ReleaseDC(host,screen);
+ DeleteObject(bmp);DeleteDC(mem);ReleaseDC(host,screen);
  if(rows!=h)return false;
  std::filesystem::create_directories("qa-screenshots");
  std::ofstream file(std::string("qa-screenshots/")+name,std::ios::binary);
