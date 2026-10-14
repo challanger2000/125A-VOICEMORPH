@@ -599,6 +599,8 @@ int exerciseNativeIRLoadDialogs(HWND hwnd){
  for(const auto& entry:buttons){
   std::atomic<bool> found{false};
   std::thread observer([&]{
+   // The picker can block the GUI message thread. Never depend on that
+   // thread to execute the timeout or cancellation logic.
    for(int attempt=0;attempt<250;++attempt){
     DialogObserver seen{entry.second};
     EnumWindows(findIRDialog,reinterpret_cast<LPARAM>(&seen));
@@ -609,6 +611,15 @@ int exerciseNativeIRLoadDialogs(HWND hwnd){
     }
     Sleep(20);
    }
+   // Fail-safe: close any modal window owned by this test host, even if
+   // the native picker uses a localized or unexpected window title.
+   EnumWindows([](HWND window,LPARAM arg)->BOOL{
+    HWND owner=reinterpret_cast<HWND>(arg);
+    if(window!=owner && GetWindow(window,GW_OWNER)==owner &&
+       IsWindowVisible(window))
+      PostMessageW(window,WM_CLOSE,0,0);
+    return TRUE;
+   },reinterpret_cast<LPARAM>(hwnd));
   });
   const auto& b=entry.first;
   mouseAction(hwnd,b.x+b.w/2,b.y+b.h/2,true);
