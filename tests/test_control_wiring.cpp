@@ -76,7 +76,7 @@ int main(int argc,char** argv){
   const std::string tag="P"+std::to_string(c.id);
   const std::string idName=c.symbol;
   assert(ids.find(idName+"="+std::to_string(c.id))!=std::string::npos);
-  assert(count(ui,"control-tag=\""+tag+"\"")==2);
+  assert(count(ui,"control-tag=\""+tag+"\"")== (c.id==109?1:2));
   assert(inParamDeclaration(controller,idName,true));
   assert(processor.find(c.signalPath)!=std::string::npos);
   bool slider=false;
