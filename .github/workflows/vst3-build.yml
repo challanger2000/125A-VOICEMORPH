@@ -28,6 +28,14 @@ jobs:
           if (-not (Test-Path -LiteralPath $plugin)) { throw "VST3 missing" }
           & ".\\build\\Release\\test_vm_editor_lifecycle.exe" $plugin
           if ($LASTEXITCODE -ne 0) { throw "Native editor lifecycle probe failed: $LASTEXITCODE" }
+      - name: Archive actual native editor screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoiceMorph-Native-GUI-Screenshots
+          path: qa-screenshots/*.bmp
+          if-no-files-found: warn
+          retention-days: 14
       - name: Spectral realtime CPU and allocation probe
         run: .\build\Release\test_pitch_realtime.exe
       - name: Stage installable VST3 directory
