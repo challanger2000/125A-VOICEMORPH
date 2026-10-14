@@ -52,7 +52,8 @@ jobs:
           if (-not (Test-Path -LiteralPath $source)) { throw "VST3 bundle missing: $source" }
           New-Item -ItemType Directory -Force -Path "dist" | Out-Null
           Copy-Item -LiteralPath $source -Destination "dist/125A VoiceMorph.vst3" -Recurse -Force
-          if (-not (Test-Path -LiteralPath "dist/125A VoiceMorph.vst3/Contents/x86_64-win/VoiceMorph.vst3")) {
+          Rename-Item -LiteralPath "dist/125A VoiceMorph.vst3/Contents/x86_64-win/VoiceMorph.vst3" -NewName "125A VoiceMorph.vst3"
+          if (-not (Test-Path -LiteralPath "dist/125A VoiceMorph.vst3/Contents/x86_64-win/125A VoiceMorph.vst3")) {
             throw "Installable VST3 binary missing from dist/125A VoiceMorph.vst3"
           }
       - name: Package VST3 development build
