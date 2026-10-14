@@ -427,3 +427,12 @@ Native VST3 hosting test of `IComponent::setState/getState` and `IEditController
 - Final real Studio One save/reopen, automation, 44.1/48 kHz, meter/status and spoken-word listening are independently required.
 
 **Current classification:** source findings VERIFIED; native LOAD, stopped-transport status, visible filenames, post-change CI and DAW acceptance **NOT VERIFIED**. **FINAL BLOCKED.** Do not change sonic DSP while repairing these host/UI gaps.
+
+
+## Additional IR state-lifecycle source finding (2026-10-14)
+
+**Observed code contract:** `VMProcessor::queueIRJob()` marks LOADING and queues a pathname. `getState()` serializes only `*StatePath/*StateSource`, which are changed *after* `irWorkerLoop()` finishes successfully. Thus a host save while a newly selected WAV is still LOADING serializes the previous committed IR rather than the pending user selection. This may be an intentional last-known-good snapshot, but is **not demonstrated as accepted UX**. A regression must explicitly assert expected save-during-load semantics and reopen outcome, including failed replacements.
+
+**Distinct readiness states:** `irWorkerLoop()` sets READY when it has prepared and published a new stage into `IRStageHandoff::pending_`. The actual sound engine adopts it only in `acquireAudio()` at the start of a subsequent audio `process()` call. Therefore READY cannot be treated as proof that the new IR is currently sounding with transport stopped. Test READY for completed preparation separately from actual adoption after the first audio block and measure the audible IR response.
+
+**Source trace only; no new build or measured failures established.** No production DSP edits made. Release gate still BLOCKED.
