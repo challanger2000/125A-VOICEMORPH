@@ -26,7 +26,7 @@
 <control-tag name="P106" tag="106"/>
 <control-tag name="P107" tag="107"/>
 <control-tag name="P108" tag="108"/>
-<control-tag name="P109" tag="109"/>
+<control-tag name="P109" tag="109"/><control-tag name="VoiceActiveStatus" tag="313"/>
 <control-tag name="P110" tag="110"/>
 <control-tag name="P111" tag="111"/>
 <control-tag name="P112" tag="112"/>
@@ -112,7 +112,7 @@
 <view class="CSlider" origin="53, 119" size="153, 17" control-tag="P121" default-value="0.25" orientation="horizontal" mode="free click" draw-frame="true" draw-back="true" draw-value="true" draw-value-from-center="false" frame-width="1" draw-frame-color="Outline" draw-back-color="Field" draw-value-color="Accent"/>
 <view class="CTextEdit" origin="213, 113" size="65, 25" control-tag="P121" font="Small" font-color="MainText" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="4" text-alignment="center" immediate-text-change="false"/></view><view class="CViewContainer" origin="14, 278" size="972, 204" background-color="Panel" transparent="false"><view class="CTextLabel" origin="12, 8" size="350, 20" title="05  VOICE PROCESSING" font="Section" font-color="Accent" transparent="true" mouse-enabled="false" text-alignment="left" />
 <view class="CTextButton" origin="783, 8" size="171, 28" title="VOICE BYPASS" control-tag="P109" default-value="0" kick-style="false" font="Small" text-color="MainText" text-color-highlighted="MainText" gradient="Button" gradient-highlighted="ButtonActive" frame-color="Outline" frame-color-highlighted="Accent" round-radius="5"/>
-<view class="CTextLabel" origin="904, 39" size="51, 20" title="OFF" control-tag="P109" font="Small" font-color="Accent" transparent="true" mouse-enabled="false" text-alignment="right"/>
+<view class="CTextLabel" origin="904, 39" size="51, 20" title="ON" control-tag="VoiceActiveStatus" font="Small" font-color="Accent" transparent="true" mouse-enabled="false" text-alignment="right"/>
 <view class="CTextLabel" origin="14, 47" size="150, 20" title="DE-NASAL" font="Muted" font-color="MutedColor" transparent="true" mouse-enabled="false" text-alignment="left" />
 <view class="CSlider" origin="14, 70" size="200, 17" control-tag="P102" default-value="0" orientation="horizontal" mode="free click" draw-frame="true" draw-back="true" draw-value="true" draw-value-from-center="false" frame-width="1" draw-frame-color="Outline" draw-back-color="Field" draw-value-color="Accent"/>
 <view class="CTextEdit" origin="221, 62" size="77, 25" control-tag="P102" font="Small" font-color="MainText" back-color="Field" frame-color="Outline" frame-width="1" style-round-rect="true" round-rect-radius="4" text-alignment="center" immediate-text-change="false"/>
