@@ -638,6 +638,29 @@ int exerciseNativeIRLoadDialogs(HWND hwnd){
  return 0;
 }
 
+// Native GUI timer -> processor request/reply integration while stopped.
+// No process() call: prove the controller's read-only IR telemetry is fed
+// by control-thread messages rather than by audio output parameter queues.
+int awaitIRStatusWithoutAudio(IEditController* controller,int expected){
+ const std::array<ParamID,3> ids{{204u,208u,205u}};
+ for(int attempt=0;attempt<80;++attempt){
+  pump();
+  bool all=true;
+  for(const auto id:ids){
+   const auto actual=static_cast<int>(std::lround(controller->getParamNormalized(id)*3.));
+   if(actual!=expected){all=false;break;}
+  }
+  if(all){
+   std::cout<<"Native stopped-transport IR status "<<expected
+            <<" all three slots PASS\\n";
+   return 0;
+  }
+ }
+ std::cerr<<"Stopped-transport IR status not propagated, expected "<<expected
+          <<" after GUI polling\\n";
+ return 136;
+}
+
 // IR GUI command test: use three already-embedded source WAVs, click the
 // actual CLEAR buttons and verify their processor state physically shrinks.
 // This tests GUI -> subcontroller -> VST3 message -> worker -> saved state,
@@ -769,6 +792,7 @@ int probe(const std::filesystem::path& path){
      std::cerr<<"GUI actual mouse/scale test failure: "<<result<<"\n";
      return result;
     }
+    if(const int result=awaitIRStatusWithoutAudio(controller,2))return result;
     if(const int result=exerciseNativeIRLoadDialogs(window)){
      std::cerr<<"Native GUI IR LOAD picker test failure "<<result<<"\\n";
      return result;
@@ -777,6 +801,7 @@ int probe(const std::filesystem::path& path){
      std::cerr<<"Native GUI IR clear test failure "<<result<<"\n";
      return result;
     }
+    if(const int result=awaitIRStatusWithoutAudio(controller,0))return result;
    }
    if(view->removed()!=kResultTrue||view->setFrame(nullptr)!=kResultTrue){
     std::cerr<<"remove/setFrame cleanup FAIL cycle "<<cycle<<"\n";return 14;
