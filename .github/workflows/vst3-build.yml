@@ -51,13 +51,14 @@ jobs:
           }
 
       - name: Unit tests
-        run: ctest --test-dir build -C Release --output-on-failure
+        shell: pwsh
+        run: ./tools/run-qa-command.ps1 -Executable ctest -CommandArgs @("--test-dir", "build", "-C", "Release", "--output-on-failure", "--output-junit", "build/windows-tests.xml")
       - name: Native packaged VST3 editor lifecycle (20 cycles)
         shell: pwsh
         run: |
           $plugin = "build/VST3/Release/125A VoiceMorph.vst3"
           if (-not (Test-Path -LiteralPath $plugin)) { throw "VST3 missing" }
-          & ".\\build\\Release\\test_vm_editor_lifecycle.exe" $plugin
+          & "./tools/run-qa-command.ps1" -Executable ".\build\Release\test_vm_editor_lifecycle.exe" -CommandArgs @($plugin)
           if ($LASTEXITCODE -ne 0) { throw "Native editor lifecycle probe failed: $LASTEXITCODE" }
       - name: Archive actual native editor screenshots
         if: always()
@@ -68,7 +69,8 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
       - name: Spectral realtime CPU and allocation probe
-        run: .\build\Release\test_pitch_realtime.exe
+        shell: pwsh
+        run: ./tools/run-qa-command.ps1 -Executable ".\build\Release\test_pitch_realtime.exe" -CommandArgs @()
       - name: Stage installable VST3 directory
         shell: pwsh
         run: |
@@ -91,7 +93,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: ./tools/run-full-qa.ps1 -PluginPath "dist/125A VoiceMorph.vst3"
+        run: ./tools/run-qa-command.ps1 -Executable "./tools/run-full-qa.ps1" -CommandArgs @("-PluginPath", "dist/125A VoiceMorph.vst3")
       - name: Archive current shipping-package QA evidence
         if: always()
         uses: actions/upload-artifact@v4
