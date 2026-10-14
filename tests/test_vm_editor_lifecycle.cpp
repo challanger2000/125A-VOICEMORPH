@@ -567,6 +567,50 @@ int checkRealProjectRecall(IComponent* component,IEditController* controller){
  return 0;
 }
 
+
+// IR GUI command test: use three already-embedded source WAVs, click the
+// actual CLEAR buttons and verify their processor state physically shrinks.
+// This tests GUI -> subcontroller -> VST3 message -> worker -> saved state,
+// even while no process() callback or transport is running.
+int exerciseNativeIRClears(HWND hwnd,IComponent* component){
+ if(!component)return 128;
+ Steinberg::MemoryStream initial;
+ if(component->getState(&initial)!=kResultOk)return 129;
+ const auto start=initial.getSize();
+ if(start<3*46){std::cerr<<"Missing three embedded fixture IRs\n";return 130;}
+ const std::array<Widget,3> buttons{{
+  {1002,519,147,100,27}, // MIC CLEAR
+  {1005,815,147,100,27}, // PREAMP CLEAR
+  {1003,283,495,85,27}  // REVERB CLEAR
+ }};
+ auto previous=start;
+ for(const auto& b:buttons){
+  const int x=b.x+b.w/2,y=b.y+b.h/2;
+  mouseAction(hwnd,x,y,true);mouseAction(hwnd,x,y,false);
+  bool cleared=false;
+  for(int retry=0;retry<100;++retry){
+   pump();
+   Steinberg::MemoryStream state;
+   if(component->getState(&state)!=kResultOk)return 131;
+   const auto now=state.getSize();
+   if(now==previous-46){previous=now;cleared=true;break;}
+   if(now<previous-46){
+    std::cerr<<"CLEAR modified unexpected number of IRs for tag "<<b.id<<"\n";
+    return 132;
+   }
+   Sleep(10);
+  }
+  if(!cleared){
+   std::cerr<<"Real CLEAR button failed GUI->DSP state "
+            <<b.id<<" (transport stopped)\n";return 133;
+  }
+  std::cout<<"Native IR CLEAR button "<<b.id
+           <<" released exactly one original WAV with stopped transport PASS\n";
+ }
+ if(previous!=start-138)return 134;
+ return 0;
+}
+
 int probe(const std::filesystem::path& path){
  std::string error;
  auto module=Module::create(path.u8string(),error);
@@ -618,6 +662,12 @@ int probe(const std::filesystem::path& path){
    if(cp)cp->release();if(cc)cc->release();
    controller->terminate();controller->release();component->terminate();return 8;
   }
+  // Seed three portable WAV sources before opening the editor, so the
+  // actual CLEAR buttons can be tested against real worker-owned IR data.
+  if(const int result=checkRealProjectRecall(component.get(),controller)){
+   std::cerr<<"Real VST3 embedded project recall failed "<<result<<"\n";
+   return result;
+  }
   for(int cycle=0;cycle<kCycles;++cycle){
    auto* view=controller->createView(ViewType::kEditor);
    if(!view){std::cerr<<"Editor createView FAIL cycle "<<cycle<<"\n";return 9;}
@@ -649,6 +699,10 @@ int probe(const std::filesystem::path& path){
      std::cerr<<"GUI actual mouse/scale test failure: "<<result<<"\n";
      return result;
     }
+    if(const int result=exerciseNativeIRClears(window,component.get())){
+     std::cerr<<"Native GUI IR clear test failure "<<result<<"\n";
+     return result;
+    }
    }
    if(view->removed()!=kResultTrue||view->setFrame(nullptr)!=kResultTrue){
     std::cerr<<"remove/setFrame cleanup FAIL cycle "<<cycle<<"\n";return 14;
@@ -658,10 +712,6 @@ int probe(const std::filesystem::path& path){
    view->release();
    if(IsWindow(window)){std::cerr<<"Window remained after destroy\n";return 15;}
    std::cout<<"Editor attach/detach cycle "<<(cycle+1)<<"/"<<kCycles<<" PASS\n";
-  }
-  if(const int result=checkRealProjectRecall(component.get(),controller)){
-   std::cerr<<"Real VST3 embedded project recall failed "<<result<<"\n";
-   return result;
   }
   cc->disconnect(cp);cp->disconnect(cc);
   cp->release();cc->release();
