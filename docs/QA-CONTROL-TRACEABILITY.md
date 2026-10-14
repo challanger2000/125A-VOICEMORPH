@@ -436,3 +436,19 @@ Native VST3 hosting test of `IComponent::setState/getState` and `IEditController
 **Distinct readiness states:** `irWorkerLoop()` sets READY when it has prepared and published a new stage into `IRStageHandoff::pending_`. The actual sound engine adopts it only in `acquireAudio()` at the start of a subsequent audio `process()` call. Therefore READY cannot be treated as proof that the new IR is currently sounding with transport stopped. Test READY for completed preparation separately from actual adoption after the first audio block and measure the audible IR response.
 
 **Source trace only; no new build or measured failures established.** No production DSP edits made. Release gate still BLOCKED.
+
+## Release source cross-check after Windows visual capture (2026-10-14)
+
+**Exact reviewed build:** https://github.com/challanger2000/125A-VOICEMORPH/actions/runs/38596083871, head `88a318ef99b15f43890bdabead2daee6785b697a`; successful Windows workflow with GUI BMP capture artifacts. Build source is unchanged by this QA note.
+
+**Static DSP wiring inspection:** `VMProcessor::apply()` connects normalized input/output gain, B1 correction, seven voice tonal controls, three MIC/PREAMP/REVERB mix/level chains, reverb predelay, and pitch/formant. `FixedLatencyIRChain::process()` orders input gain → B1 correction → MIC IR → PREAMP IR → pitch/formant and voice with voice-only bypass → REVERB IR → output gain. Deprecated MIC position and MIC/PREAMP predelay IDs remain reserved but inactive. This is a code inspection, not proof of sonic identity or numerical correctness at all input/rate/block extremes.
+
+**GUI tag integrity:** Parsed the current `voicemorph.uidesc` control-tag declarations: 46 defined tags, 43 referenced tags, zero duplicate numeric tag IDs, zero undefined GUI references. The three unused declarations (P114, P115, P122) match retired parameters and preserve VST3 identity. Original per-control native mouse and values tests remain tied to their exact previous CI build.
+
+**Packaging / actual logo asset:** Inspected binary of `VoiceMorph-v0.1.0-Windows-x64-DEVELOPMENT` downloaded from the exact Windows run above. `Contents/Resources/125A_Logo_Master.png` is RGBA, 156×78, with nontransparent content only from (14,9) to (142,71). The `125A-Branding` authoritative source is `125A_Logo_Master_FINAL.svg` with viewBox 1774×887. Their common 2:1 aspect ratio does NOT prove identical geometry, and the small integrated bitmap is insufficient evidence of crispness at 150% scaling. Master pixel/contour equivalence is **NOT VERIFIED** and should not be claimed as PASS or used to justify resizing without comparison.
+
+**IR GUI layout:** MIC/PREAMP filename text is at local y=67..83 and MIX text begins y=84, a 1-pixel separation; although no literal rectangle overlap remains, this margin is tight. REVERB filename is separate at y=89..107. Check glyph overshoot, clipping and visual spacing at 100/150% using actual screenshots, not geometry alone.
+
+**Remaining independent acceptance:** verify exact rendered filename text for selected WAVs, logo geometry/appearance compared with master, audio-level DSP regression under sample-rate/automation/bypass extremes, up-to-date independent 125A Plugin Tester (the pinned full QA workflow currently uses an older VOICEMORPH binary), and final Studio One host test by the user. Those points prevent a defensible blanket release-ready statement.
+
+**No plugin/DSP modification in this source inspection.**
