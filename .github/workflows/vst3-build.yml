@@ -52,7 +52,7 @@ jobs:
 
       - name: Unit tests
         shell: pwsh
-        run: ./tools/run-qa-command.ps1 -Executable ctest -CommandArgs @("--test-dir", "build", "-C", "Release", "--output-on-failure", "--output-junit", "build/windows-tests.xml")
+        run: ./tools/run-qa-command.ps1 -Executable ctest -CommandArgs @("--test-dir", "build", "-C", "Release", "--output-on-failure", "--output-junit", "windows-tests.xml")
       - name: Native packaged VST3 editor lifecycle (20 cycles)
         shell: pwsh
         run: |
@@ -93,7 +93,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: ./tools/run-qa-command.ps1 -Executable "./tools/run-full-qa.ps1" -CommandArgs @("-PluginPath", "dist/125A VoiceMorph.vst3")
+        run: ./tools/run-qa-command.ps1 -Executable "./tools/run-full-qa.ps1" -CommandArgs @("dist/125A VoiceMorph.vst3")
       - name: Archive current shipping-package QA evidence
         if: always()
         uses: actions/upload-artifact@v4

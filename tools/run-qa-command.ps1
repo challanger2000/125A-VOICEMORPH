@@ -1,6 +1,6 @@
 param(
  [Parameter(Mandatory=$true)][string]$Executable,
- [Parameter(Mandatory=$true)][string[]]$CommandArgs
+ [Parameter(Mandatory=$true)][AllowEmptyCollection()][string[]]$CommandArgs
 )
 # Preserve every original test gate and exit status while making diagnostics
 # available in Actions annotations when API/log access is unavailable.
@@ -31,7 +31,7 @@ if ($qaExit -ne 0) {
    Write-Host ("::error::" + (Escape-Annotation ($name + "`n" + $detail)))
   }
  } else {
-  $detail = (Get-Content -LiteralPath $qaLog | Select-Object -Last 100) -join "`n"
+  $detail = (Get-Content -LiteralPath $qaLog | Select-Object -Last 30) -join "`n"
   Write-Host ("::error::" + (Escape-Annotation ($Executable + " exit=" + $qaExit + "`n" + $detail)))
  }
  exit $qaExit
