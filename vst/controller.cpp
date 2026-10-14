@@ -11,6 +11,8 @@
 #include "vstgui/lib/controls/cbuttons.h"
 #include "vstgui/lib/controls/cslider.h"
 #include "vstgui/lib/cframe.h"
+#include "vstgui/lib/controls/ctextlabel.h"
+#include "vstgui/lib/cvstguitimer.h"
 #include <cstring>
 #include <cmath>
 #include <cstdio>
@@ -78,6 +80,28 @@ namespace {
 // gesture and map vertical wheel movement only when deltaX is absent.
 // Every existing slider parameter ID, visual state and editing gesture
 // remains unchanged. This is a GUI-only adjustment.
+class IRFilenameLabel final : public VSTGUI::CTextLabel {
+ Steinberg::VMController* owner_;
+ int slot_;
+ VSTGUI::CVSTGUITimer* timer_;
+public:
+ IRFilenameLabel(const VSTGUI::CTextLabel& source,
+                 Steinberg::VMController* owner,int slot)
+  :CTextLabel(source),owner_(owner),slot_(slot),timer_(nullptr){
+  setTextTruncateMode(kTruncateHead);
+  timer_=new VSTGUI::CVSTGUITimer([this](VSTGUI::CVSTGUITimer*){
+   if(!owner_)return;
+   owner_->queryIRStatus();
+   const auto& path=owner_->irFilename(slot_);
+   auto p=path.find_last_of("/\\\\");
+   const std::string shown=path.empty()?"NO IR":path.substr(p==std::string::npos?0:p+1);
+   setText(shown.c_str());
+  },250);
+ }
+ ~IRFilenameLabel() noexcept override {
+  if(timer_){timer_->stop();timer_->forget();}
+ }
+};
 class VoiceWheelSlider final : public VSTGUI::CSlider {
 public:
  explicit VoiceWheelSlider(const VSTGUI::CSlider& source):CSlider(source){}
@@ -135,6 +159,14 @@ IPlugView* PLUGIN_API VMController::createView(FIDString name){
 VSTGUI::CView* VMController::verifyView(VSTGUI::CView* view,
  const VSTGUI::UIAttributes&,const VSTGUI::IUIDescription*,
  VSTGUI::VST3Editor*){
+ if(auto* label=dynamic_cast<VSTGUI::CTextLabel*>(view)){
+  const int tag=label->getTag();
+  if(tag>=310&&tag<=312){
+   auto* adapted=new IRFilenameLabel(*label,this,tag-310);
+   label->forget();
+   return adapted;
+  }
+ }
  auto* slider=dynamic_cast<VSTGUI::CSlider*>(view);
  if(!slider)return view;
  const int tag=slider->getTag();
