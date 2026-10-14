@@ -69,7 +69,8 @@ struct Plugin {
  IPtr<Handler> handler=owned(new Handler);
  bool active=false;
  explicit Plugin(const char* path){
-  std::string error;module=Module::create(path,error);CHECK(module);
+  std::string error;module=Module::create(path,error);
+  if(!module)throw std::runtime_error(std::string("Cannot load VST3 ")+path+": "+error);
   auto factory=module->getFactory();factory.setHostContext(&host);
   for(const auto& info:factory.classInfos())if(info.category()==kVstAudioEffectClass){CHECK(info.ID()==VST3::UID(0xFB9F1301,0x5F2946D1,0xA1F90017,0x0B11A009));CHECK(info.name()=="125A VoiceMorph");component=factory.createInstance<IComponent>(info.ID());break;}
   CHECK(component&&component->initialize(&host)==kResultOk);

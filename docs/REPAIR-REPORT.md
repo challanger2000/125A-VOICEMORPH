@@ -82,3 +82,5 @@ Bis diese Nachweise vorliegen, ist die technische Windows-/Studio-One-Releasefä
 ## Nachtrag zur Windows-Lieferung
 
 Die Windows-Ausführung hat zusätzlich einen SDK-3.8.1-/Visual-Studio-Fehler beim Ressourcen-Kopieren mit Leerzeichen im offiziellen Paketnamen nachgewiesen (Run 38635144881). `vst/CMakeLists.txt` verwendet nun dependency-basierte, mit VERBATIM quotierte Kopien an die vollständigen Bundle-Pfade. Keine nachträgliche Bundle-Umbenennung und keine Änderung der gepinnten SDK-Quellen. Die Windows-Lieferung enthält Installationsanleitung und Commit-/Modulhash-Provenienz. Der aktuelle Actions-Lauf entscheidet über den tatsächlichen Windows-Nachweis.
+
+Der erste Windows-Modultest scheiterte vor dem Laden an einer nicht ausgewerteten verschachtelten CMake-Konfiguration im Testpfad (Run 38637581721). TARGET_GENEX_EVAL korrigiert den Testpfad; Ladefehler enthalten nun zusätzlich SDK-Ursache und vollständigen Pfad. Das ist eine Testkonfigurationskorrektur, keine Abschwächung der Audio-/State-Prüfungen.

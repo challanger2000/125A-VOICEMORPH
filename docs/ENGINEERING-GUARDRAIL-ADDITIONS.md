@@ -11,3 +11,5 @@ Diese aus den VoiceMorph-Reparaturen abgeleiteten Regeln ergänzen die gelesenen
 7. GUI-, Validator-, DSP- und echte Host-Nachweise getrennt benennen. Ein vorbereiteter Windows-Test ist kein bestandenes Windows-Ergebnis. Ein synthetischer Referenzvergleich ersetzt kein pegelgleiches Hören mit der Nutzerstimme.
 
 8. SDK 3.8.1 ersetzt bei Visual-Studio-Ressourcenkopien den Paketnamen durch `$(TargetFileName)` ohne VERBATIM. Bei Namen mit Leerzeichen kann das Kopierziel in Argumente zerfallen. Eigene dependency-basierte CMake-Ressourcenkopien müssen die vollständigen Pfade mit VERBATIM erhalten; Ressourcen müssen vor SDK-Metadaten und Validator verfügbar sein. Nachgewiesen in Windows-Run 38635144881.
+
+9. Bei CTest-Aufrufen mit SDK-Target-Paketpfaden deren enthaltene Konfigurationsausdrücke über TARGET_GENEX_EVAL auswerten. TARGET_PROPERTY allein lässt verschachtelte `$<CONFIG>`-Ausdrücke unverändert; das funktioniert zufällig bei statischen Linux-Pfaden, aber nicht bei Visual-Studio-Multikonfiguration. Nachgewiesen in Windows-Run 38637581721 und einem isolierten CMake-Reproduzierer.
