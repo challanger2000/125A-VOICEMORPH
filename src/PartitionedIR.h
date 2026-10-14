@@ -74,6 +74,8 @@ public:
    std::vector<C> taps(N,C{});
    for(std::size_t i=start;i<end;++i)taps[i-start]=C(impulse[i],0);
    transform(taps,false);
+   for(const auto& bin:taps)
+    if(!std::isfinite(bin.real())||!std::isfinite(bin.imag()))return false;
    nextH.push_back(std::move(taps));
    nextOffsets.push_back(p);
   }

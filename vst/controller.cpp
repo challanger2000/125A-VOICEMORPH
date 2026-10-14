@@ -7,12 +7,14 @@
 #include "pluginterfaces/base/ustring.h"
 #include "base/source/fstreamer.h"
 #include "pluginterfaces/vst/ivstmessage.h"
+#if VM_WITH_GUI
 #include "vstgui/lib/cfileselector.h"
 #include "vstgui/lib/controls/cbuttons.h"
 #include "vstgui/lib/controls/cslider.h"
 #include "vstgui/lib/cframe.h"
 #include "vstgui/lib/controls/ctextlabel.h"
 #include "vstgui/lib/cvstguitimer.h"
+#endif
 #include <cstring>
 #include <cmath>
 #include <cstdio>
@@ -74,6 +76,7 @@ tresult VMController::requestIRFile(const std::string& utf8Path,int slot){
  return sendMessage(message);
 }
 
+#if VM_WITH_GUI
 namespace {
 // VSTGUI's built-in CSliderBase uses deltaX for horizontal controls.
 // Ordinary mouse wheels send deltaY; preserve the existing horizontal
@@ -202,6 +205,9 @@ VSTGUI::IController* VMController::createSubController(VSTGUI::UTF8StringPtr nam
  if(name&&std::strcmp(name,"VoicePresets")==0)return new VoicePresetButtons(this);
  return nullptr;
 }
+#else
+IPlugView* PLUGIN_API VMController::createView(FIDString){return nullptr;}
+#endif
 void VMController::applyVoiceQuickPreset(bool hollywood){
  // Host-compatible preset changes: update only existing voice parameters,
  // with matching begin/perform/end edit notifications for Studio One recall.
@@ -341,5 +347,14 @@ tresult PLUGIN_API VMController::getParamValueByString(
  if(!vm::parseVoiceControl(static_cast<int>(id),text,parsed))return kResultFalse;
  normalized=parsed;
  return kResultTrue;
+}
+}
+
+namespace Steinberg {
+Vst::ParamValue PLUGIN_API VMController::normalizedParamToPlain(Vst::ParamID id,Vst::ParamValue value){
+ return vm::isVoiceControl(static_cast<int>(id))?vm::voiceNormalizedToPlain(static_cast<int>(id),value):EditControllerEx1::normalizedParamToPlain(id,value);
+}
+Vst::ParamValue PLUGIN_API VMController::plainParamToNormalized(Vst::ParamID id,Vst::ParamValue value){
+ return vm::isVoiceControl(static_cast<int>(id))?vm::voicePlainToNormalized(static_cast<int>(id),value):EditControllerEx1::plainParamToNormalized(id,value);
 }
 }

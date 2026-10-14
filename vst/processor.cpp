@@ -16,6 +16,8 @@
 #include <array>
 #include <limits>
 #include <cmath>
+#include <chrono>
+#include <exception>
 namespace Steinberg {
 VMProcessor::VMProcessor(){
  setControllerClass(kVMControllerUID);stateMailbox.initialize(params);
@@ -26,6 +28,7 @@ VMProcessor::~VMProcessor(){
  irJobWake.notify_one();
  if(irWorker.joinable())irWorker.join();
  reclaimIRsControl();
+ delete pendingRestore.exchange(nullptr);delete retiredRestore.exchange(nullptr);
 }
 void VMProcessor::queueIRJob(std::string path,int slot){
  {
@@ -42,6 +45,7 @@ void VMProcessor::queueIRJob(std::string path,int slot){
   irResponseFrames[slot].store(
    path.empty()?lastSuccessfulIRFrames[slot].load(std::memory_order_acquire):pending,
    std::memory_order_release);
+  requestedIRPaths[slot]=path;
   jp=std::move(path);js.reset();hj=true;++rev;status.store(1);err.store(0);
  }
  irJobWake.notify_one();
@@ -52,7 +56,9 @@ void VMProcessor::irWorkerLoop(){
   int slot=-1;std::uint64_t revision=0;
   {
    std::unique_lock<std::mutex> lock(irJobMutex);
-   irJobWake.wait(lock,[this]{return stopIRWorker||hasMicJob||hasPreampJob||hasReverbJob;});
+   irJobWake.wait_for(lock,std::chrono::milliseconds(10),[this]{return stopIRWorker||hasMicJob||hasPreampJob||hasReverbJob;});
+   reclaimIRsControl();
+   delete retiredRestore.exchange(nullptr,std::memory_order_acq_rel);
    if(stopIRWorker)return;
    for(int off=1;off<=3;++off){
     const int c=(lastIRSlot+off)%3;
@@ -69,7 +75,9 @@ void VMProcessor::irWorkerLoop(){
   const double sr=currentSampleRate.load(std::memory_order_acquire);
   std::string error;std::unique_ptr<vm::StereoIRStage> prepared;
   vm::SharedIRSource source=stored;
-  if(path.empty()&&!stored){prepared=std::make_unique<vm::StereoIRStage>();}
+  int failureCode=0;
+  try {
+  if(path.empty()&&!stored){prepared=std::make_unique<vm::StereoIRStage>();prepared->prepareEmpty(sr);}
   else if(sr>=8000.&&sr<=384000.){
    if(stored){
     vm::WaveIR wave;
@@ -79,6 +87,8 @@ void VMProcessor::irWorkerLoop(){
     }
    }else prepared=vm::IRFileBuilder::load(path,sr,0,error,&source,slot==2);
   }else error="Unsupported host sample rate";
+  }catch(const std::bad_alloc&){prepared.reset();failureCode=2;}
+   catch(const std::exception&){prepared.reset();failureCode=4;}
   {
    std::lock_guard<std::mutex> lock(irJobMutex);
    if(stopIRWorker)return;
@@ -93,18 +103,24 @@ void VMProcessor::irWorkerLoop(){
    auto& handoff=slot==0?micHandoff:(slot==1?preampHandoff:reverbHandoff);
    if(revision!=rev)continue;
    if(vm::needsIRRateRebuild(path,stored,sr,currentSampleRate.load(std::memory_order_acquire))){
-    jp=path;js=source;hj=true;irJobWake.notify_one();continue;
+    jp=std::move(path);js=source;hj=true;irJobWake.notify_one();continue;
    }
    if(prepared){
     const uint32 responseFrames=static_cast<uint32>(prepared->responseFrames());
-    handoff.reclaimControl();handoff.publishLatest(prepared);
-    sp=path;ss=std::move(source);
+    handoff.reclaimControl();
+    // A LOAD/CLEAR completed before the first restored block supersedes
+    // that slot in the pending transaction, not only a later live handoff.
+    if(auto* restore=pendingRestore.exchange(nullptr,std::memory_order_acq_rel)){
+     restore->stages[slot]=std::move(prepared);
+     pendingRestore.store(restore,std::memory_order_release);
+    }else handoff.publishLatest(prepared);
+    sp=std::move(path);ss=std::move(source);
     lastSuccessfulIRFrames[slot].store(responseFrames,std::memory_order_release);
     irResponseFrames[slot].store(responseFrames,std::memory_order_release);
-    status.store(path.empty()&&!ss?0:2,std::memory_order_release);
+    status.store(sp.empty()&&!ss?0:2,std::memory_order_release);
     err.store(0,std::memory_order_release);
    }else{
-    err.store(static_cast<int32_t>(vm::identifyIRError(error)),std::memory_order_release);
+    err.store(failureCode?failureCode:static_cast<int32_t>(vm::identifyIRError(error)),std::memory_order_release);
     status.store(3,std::memory_order_release);
     // A rejected WAV does not replace the currently sounding IR.
     irResponseFrames[slot].store(lastSuccessfulIRFrames[slot].load(std::memory_order_acquire),
@@ -113,7 +129,7 @@ void VMProcessor::irWorkerLoop(){
   }
  }
 }
-tresult PLUGIN_API VMProcessor::notify(Vst::IMessage* message){
+tresult PLUGIN_API VMProcessor::notify(Vst::IMessage* message) try {
  if(!message||!message->getMessageID())return AudioEffect::notify(message);
  if(std::strcmp(message->getMessageID(),"125A.QueryIRStatus")==0){
   // UI-thread request/reply only. Never send VST3 connection messages
@@ -172,7 +188,7 @@ tresult PLUGIN_API VMProcessor::notify(Vst::IMessage* message){
  if(!vm::validIRPath(path,clear))return kInvalidArgument;
  queueIRJob(std::move(path),static_cast<int>(slot));
  return kResultOk;
-}
+}catch(const std::exception&){return kResultFalse;}
 tresult PLUGIN_API VMProcessor::initialize(FUnknown* context){
  auto r=AudioEffect::initialize(context);if(r!=kResultOk)return r;
  addAudioInput(STR16("Stereo In"),Vst::SpeakerArr::kStereo);
@@ -192,7 +208,9 @@ void VMProcessor::apply() noexcept {
    params[kB1Correction-kInput]>=.5f||
    std::fabs(params[kPitch-kInput]-2.f/3.f)>1.e-5f||
    std::fabs(params[kFormant-kInput]-4.f/7.f)>1.e-5f;
-  voiceFiltersActive.store(toneActive,std::memory_order_release);
+   // Retain a conservative recovery allowance after controls return to zero:
+   // IIR histories and spectral output do not disappear with the target value.
+   voiceFiltersActive.store(toneActive||voiceFiltersActive.load(std::memory_order_relaxed),std::memory_order_release);
  dsp[0].setParameters(p);dsp[1].setParameters(p);
  microphoneIR.setMix(params[kMicMix-kInput]);
  microphoneIR.setWetLevel(params[kMicLevel-kInput]*4.f);
@@ -206,53 +224,95 @@ void VMProcessor::apply() noexcept {
  pitchEngine.setPitchSemitones(params[kPitch-kInput]*18.f-12.f);
  pitchEngine.setFormantSemitones(params[kFormant-kInput]*14.f-8.f);
 }
+namespace {
+// Decode and allocate on the UI/setup thread before exposing a new project.
+std::unique_ptr<vm::StereoIRStage> prepareSource(
+ const std::string& path,vm::SharedIRSource& source,double rate,bool reverb,
+ std::string& error){
+ try {
+  auto stage=std::make_unique<vm::StereoIRStage>();
+  if(path.empty()&&!source){stage->prepareEmpty(rate);return stage;}
+  if(!std::isfinite(rate)||rate<8000.||rate>384000.){
+   error="Unsupported host sample rate";return {};
+  }
+  vm::WaveIR wave;
+  if(source){
+   if(!vm::decodeWave(source->data(),source->size(),wave,error,vm::kMaxEmbeddedIRBytes))return {};
+  }else if(!vm::loadWaveIRFile(path,wave,error,vm::kMaxEmbeddedIRBytes,&source))return {};
+  if(vm::estimateIRMemory(wave.frames(),wave.channels,wave.sampleRate,rate)>vm::kIRStageMemoryBudget){
+   error="IR memory budget exceeded";return {};
+  }
+  if(!stage->prepare(wave,rate,0,reverb)){error="Cannot prepare IR";return {};}
+  return stage;
+ }catch(const std::bad_alloc&){error="memory budget";return {};}
+  catch(const std::exception&){error="IR preparation failed";return {};}
+}
+}
 tresult PLUGIN_API VMProcessor::setupProcessing(Vst::ProcessSetup& setup){
- auto r=AudioEffect::setupProcessing(setup);
- if(r==kResultOk){
-  currentSampleRate.store(setup.sampleRate,std::memory_order_release);
-  for(auto& d:dsp)d.prepare(setup.sampleRate);
-  // Steinberg Validator probes arbitrary positive sample rates (including
-  // 1234.568 Hz and 1234567.8 Hz). Never fail the host lifecycle merely
-  // because the spectral algorithm cannot run meaningfully at that rate.
-  // Disable pitch/formants at unsupported rates, preserve the IR-only path,
-  // and return to normal spectral processing on the next valid setup.
-  if(!pitchEngine.prepare(setup.sampleRate))pitchEngine.disable();
-  fixedIRChain.preparePitchLatency(static_cast<std::size_t>(pitchEngine.latencySamples()));
-  totalLatencySamples.store(static_cast<uint32>(fixedIRChain.latencySamples()),std::memory_order_release);
-  microphoneIR.reset();preampIR.reset();reverbIR.reset();
-   for(int k=0;k<4;++k){meterDisplay[k]=meterHeld[k]=0.f;meterHoldSeconds[k]=0.;}
-   clipHoldSeconds[0]=clipHoldSeconds[1]=0.;
-   b1Correction.prepare(setup.sampleRate);apply();
-  // Serialize clearing and requeueing against completed background IR loads.
-  // Otherwise a successful worker publication may be overwritten by an
-  // out-of-order CLEAR after it finishes.
+ auto r=AudioEffect::setupProcessing(setup);if(r!=kResultOk)return r;
+ try {
+  // SDK setup runs while inactive. Rebuild synchronously: neither activation
+  // nor the first offline block may race background IR preparation.
+  std::array<std::string,3> paths,requests;
+  std::array<bool,3> resumeLoads{};
+  std::array<vm::SharedIRSource,3> sources;
   {
    std::lock_guard<std::mutex> lock(irJobMutex);
-   auto clearMic=std::make_unique<vm::StereoIRStage>();
-   auto clearPreamp=std::make_unique<vm::StereoIRStage>();
-   auto clearRev=std::make_unique<vm::StereoIRStage>();
-   micHandoff.publishLatest(clearMic);
-   preampHandoff.publishLatest(clearPreamp);
-   reverbHandoff.publishLatest(clearRev);
-   micJobPath=micStatePath;micJobSource=micStateSource;hasMicJob=true;++micRevision;
-   preampJobPath=preampStatePath;preampJobSource=preampStateSource;hasPreampJob=true;++preampRevision;
-   reverbJobPath=reverbStatePath;reverbJobSource=reverbStateSource;hasReverbJob=true;++reverbRevision;
-    const auto pending=vm::pendingIRFrames(setup.sampleRate);
-    const bool queued[3]={!micStatePath.empty()||static_cast<bool>(micStateSource),
-                          !preampStatePath.empty()||static_cast<bool>(preampStateSource),
-                          !reverbStatePath.empty()||static_cast<bool>(reverbStateSource)};
-    for(int stage=0;stage<3;++stage){
-     lastSuccessfulIRFrames[stage].store(0,std::memory_order_release);
-     irResponseFrames[stage].store(queued[stage]?pending:0,std::memory_order_release);
-    }
-   micIRStatus.store(micStatePath.empty()&&!micStateSource?0:1);
-   preampIRStatus.store(preampStatePath.empty()&&!preampStateSource?0:1);
-   reverbIRStatus.store(reverbStatePath.empty()&&!reverbStateSource?0:1);
-   micIRError.store(0);preampIRError.store(0);reverbIRError.store(0);
+   resumeLoads={micIRStatus.load()==1,preampIRStatus.load()==1,reverbIRStatus.load()==1};
+   requests=requestedIRPaths;
+   hasMicJob=hasPreampJob=hasReverbJob=false;
+   ++micRevision;++preampRevision;++reverbRevision;
+   paths={micStatePath,preampStatePath,reverbStatePath};
+   sources={micStateSource,preampStateSource,reverbStateSource};
   }
-  irJobWake.notify_one();
- }
- return r;
+  std::array<std::unique_ptr<vm::StereoIRStage>,3> stages;
+  for(int slot=0;slot<3;++slot){
+   std::string error;stages[slot]=prepareSource(paths[slot],sources[slot],setup.sampleRate,slot==2,error);
+   if(!stages[slot])return kResultFalse;
+  }
+  currentSampleRate.store(setup.sampleRate,std::memory_order_release);
+  for(auto& d:dsp)d.prepare(setup.sampleRate);
+  if(!pitchEngine.prepare(setup.sampleRate))pitchEngine.disable();
+  fixedIRChain.prepareGains(std::isfinite(setup.sampleRate)?std::clamp(setup.sampleRate,8000.,384000.):48000.);
+  fixedIRChain.preparePitchLatency(static_cast<std::size_t>(pitchEngine.latencySamples()));
+  totalLatencySamples.store(static_cast<uint32>(fixedIRChain.latencySamples()),std::memory_order_release);
+  stateMailbox.snapshot(params);stateMailbox.consumeAudio(params);
+  voiceFiltersActive.store(false,std::memory_order_relaxed);
+  apply();b1Correction.prepare(setup.sampleRate);
+  for(int k=0;k<4;++k){meterDisplay[k]=meterHeld[k]=0;meterHoldSeconds[k]=0;}
+  clipHoldSeconds[0]=clipHoldSeconds[1]=0;startedAudio=false;
+  {
+   std::lock_guard<std::mutex> lock(irJobMutex);
+   delete pendingRestore.exchange(nullptr);delete retiredRestore.exchange(nullptr);
+   vm::IRStageHandoff* handoffs[3]={&micHandoff,&preampHandoff,&reverbHandoff};
+   std::atomic<int32_t>* statuses[3]={&micIRStatus,&preampIRStatus,&reverbIRStatus};
+   std::atomic<int32_t>* errors[3]={&micIRError,&preampIRError,&reverbIRError};
+   for(int slot=0;slot<3;++slot){
+    const uint32 frames=static_cast<uint32>(stages[slot]->responseFrames());
+    handoffs[slot]->replaceStoppedControl(std::move(stages[slot]));
+    lastSuccessfulIRFrames[slot].store(frames);irResponseFrames[slot].store(frames);
+    statuses[slot]->store(sources[slot]?2:0);errors[slot]->store(0);
+   }
+   micStateSource=sources[0];preampStateSource=sources[1];reverbStateSource=sources[2];
+  }
+  // Keep an in-flight user LOAD/CLEAR across an inactive rate change.
+  for(int slot=0;slot<3;++slot)if(resumeLoads[slot])queueIRJob(std::move(requests[slot]),slot);
+  return kResultOk;
+ }catch(const std::exception&){return kResultFalse;}
+}
+bool VMProcessor::adoptRestoreAudio() noexcept {
+ if(retiredRestore.load(std::memory_order_acquire)||
+    !micHandoff.canInstallAudio()||!preampHandoff.canInstallAudio()||
+    !reverbHandoff.canInstallAudio())return false;
+ auto* restore=pendingRestore.exchange(nullptr,std::memory_order_acq_rel);
+ if(!restore)return false;
+ micHandoff.installAudio(restore->stages[0],startedAudio);
+ preampHandoff.installAudio(restore->stages[1],startedAudio);
+ reverbHandoff.installAudio(restore->stages[2],startedAudio);
+ std::copy(restore->parameters.begin(),restore->parameters.end(),params);
+ stateMailbox.acceptAudioRevision(restore->revision);
+ retiredRestore.store(restore,std::memory_order_release);
+ return true;
 }
 // VST3 processing lifecycle acknowledgement. The SDK AudioEffect base class
 // returns kNotImplemented here, which is not acceptable to stricter hosts.
@@ -267,9 +327,9 @@ uint32 PLUGIN_API VMProcessor::getLatencySamples(){
 }
 uint32 PLUGIN_API VMProcessor::getTailSamples(){
  const std::array<std::uint32_t,3> frames{{
-  irResponseFrames[0].load(std::memory_order_acquire),
-  irResponseFrames[1].load(std::memory_order_acquire),
-  irResponseFrames[2].load(std::memory_order_acquire)
+  std::max(irResponseFrames[0].load(std::memory_order_acquire),micHandoff.audibleFrames()),
+  std::max(irResponseFrames[1].load(std::memory_order_acquire),preampHandoff.audibleFrames()),
+  std::max(irResponseFrames[2].load(std::memory_order_acquire),reverbHandoff.audibleFrames())
  }};
  return vm::estimateTailSamples(frames,
   currentSampleRate.load(std::memory_order_acquire),
@@ -294,8 +354,12 @@ tresult PLUGIN_API VMProcessor::canProcessSampleSize(int32 n){
 tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
  // Project-state restore is published off-thread as atomics; consume only
  // at the audio block boundary, never mutate the live DSP from setState().
- const bool restored=stateMailbox.consumeAudio(params);
- if(restored)apply();
+ vm::RealtimeGuard realtimeGuard;
+ const bool restored=adoptRestoreAudio();
+ if(restored){
+  apply();
+  if(!startedAudio)b1Correction.prepare(currentSampleRate.load(std::memory_order_relaxed));
+ }
  // VST3 automation points are sample-offset events. Previously only the
  // last point was applied to the *first* sample of a buffer; that breaks
  // precise pitch/formant automation, bypass and parameter ramps.
@@ -318,7 +382,7 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
    entry.cursor.reset(queue->getPointCount(),
     [queue](int32 index,int32& offset,double& value) noexcept {
      return queue->getPoint(index,offset,value)==kResultTrue;
-    });
+    },params[id-kInput],id!=kBypass&&id!=kB1Correction&&id!=kMicPosition);
    if(entry.cursor.pending())++activeCount;
   }
  }
@@ -331,15 +395,13 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
    auto& entry=active[i];
    auto* queue=entry.queue;
    const auto id=entry.id;
-   changed|=entry.cursor.consumeThrough(sampleOffset,
-    [queue](int32 index,int32& offset,double& value) noexcept {
-     return queue->getPoint(index,offset,value)==kResultTrue;
-    },
-    [&](double value) noexcept {
-     const float normalized=static_cast<float>(std::clamp(value,0.,1.));
-     params[id-kInput]=normalized;
-     stateMailbox.storeAutomationAudio(id-kInput,normalized);
-    });
+   const auto fetch=[queue](int32 index,int32& offset,double& value) noexcept {
+    return queue->getPoint(index,offset,value)==kResultTrue;
+   };
+   const float normalized=static_cast<float>(std::clamp(entry.cursor.valueAt(sampleOffset,fetch),0.,1.));
+   if(normalized!=params[id-kInput]){
+    params[id-kInput]=normalized;stateMailbox.storeAutomationAudio(id-kInput,normalized);changed=true;
+   }
   }
   if(changed){
    apply();
@@ -363,9 +425,9 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
   }
  };
  // Adopt prebuilt IR engines only at audio-block boundaries; no allocations here.
- auto* micLoaded=micHandoff.acquireAudio();
- auto* preampLoaded=preampHandoff.acquireAudio();
- auto* reverbLoaded=reverbHandoff.acquireAudio();
+ auto* micLoaded=micHandoff.acquireAudio(startedAudio);
+ auto* preampLoaded=preampHandoff.acquireAudio(startedAudio);
+ auto* reverbLoaded=reverbHandoff.acquireAudio(startedAudio);
  vm::StereoIRStage* mic=micLoaded?micLoaded:&microphoneIR;
  vm::StereoIRStage* preamp=preampLoaded?preampLoaded:&preampIR;
  vm::StereoIRStage* rev=reverbLoaded?reverbLoaded:&reverbIR;
@@ -422,12 +484,8 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
  // Always sanitize non-finite input samples before DSP. Avoid changing input
  // buffers because the host may share them with other processors.
  // Individual VoiceDSP instances already reject non-finite input values.
- // Snapshot dry signal before modifying any buffers (VST3 in-place processing).
+ // INPUT meter measures the actual smoothed trim, before B1/IRs.
  float dryPeak[2]={0.f,0.f};
- for(int32 channel=0;channel<inputChannels;++channel){
-  for(int32 i=0;i<data.numSamples;++i)
-   dryPeak[channel]=std::max(dryPeak[channel],std::fabs(readInput(channel,i)));
- }
  // Constant 384-sample signal path with three 128-sample inserts. Disabled
  // IRs are latency-matched; bypass also remains delay-compensated.
  for(int32 n=0;n<data.numSamples;++n){
@@ -440,12 +498,22 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
   float outL=0.f,outR=0.f;
   fixedIRChain.process(inL,inR,outL,outR,
                        dsp[0],dsp[1],mic,rev,pre,bypass,&pitchEngine,preamp,&b1Correction);
+  const float inputGain=fixedIRChain.inputGain();
+  dryPeak[0]=std::max(dryPeak[0],std::fabs(inL*inputGain));
+  if(inputChannels>1)dryPeak[1]=std::max(dryPeak[1],std::fabs(inR*inputGain));
   writeOutput(0,n,outL);
   if(outputChannels>1)writeOutput(1,n,outR);
  }
+ startedAudio=true;
  // An event at the exact end of a block becomes the initial value of the
  // *next* block; do not apply it to already rendered samples.
- applyAutomationAt(data.numSamples);
+ // End-offset events: do not extrapolate a continuous ramp by one sample.
+ for(int i=0;i<activeCount;++i){
+  auto& entry=active[i];auto* queue=entry.queue;
+  entry.cursor.consumeThrough(data.numSamples,
+   [queue](int32 index,int32& offset,double& value) noexcept {return queue->getPoint(index,offset,value)==kResultTrue;},
+   [&](double value) noexcept {params[entry.id-kInput]=static_cast<float>(std::clamp(value,0.,1.));stateMailbox.storeAutomationAudio(entry.id-kInput,params[entry.id-kInput]);});
+ }
  for(int32 ch=outputChannels;ch<output.numChannels;++ch){
   if(sample64){
    if(output.channelBuffers64[ch])
@@ -463,6 +531,7 @@ tresult PLUGIN_API VMProcessor::process(Vst::ProcessData& data){
     :vm::audioToFloat(output.channelBuffers32[channel][i]);
    meterOutput[channel]=std::max(meterOutput[channel],std::fabs(rendered));
   }
+  if(meterOutput[channel]==0.f)output.silenceFlags|=uint64(1)<<channel;
  }
  // Realtime-only meter telemetry; holds peaks for 650 ms and decays
  // exponentially with a 350 ms release independent of host block size.
@@ -574,7 +643,7 @@ bool readIRPayload(IBStream* stream,vm::SharedIRSource& output){
  return true;
 }
 }
-tresult PLUGIN_API VMProcessor::getState(IBStream* stream){
+tresult PLUGIN_API VMProcessor::getState(IBStream* stream) try {
  if(!stream)return kResultFalse;
  IBStreamer io(stream,kLittleEndian);
  if(!io.writeInt32(8))return kResultFalse;
@@ -592,8 +661,8 @@ tresult PLUGIN_API VMProcessor::getState(IBStream* stream){
         writeIRPayload(stream,micSource)&&writeIRPayload(stream,revSource)&&
         writeIRPath(stream,preamp)&&writeIRPayload(stream,preampSource)
         ?kResultOk:kResultFalse;
-}
-tresult PLUGIN_API VMProcessor::setState(IBStream* stream){
+}catch(const std::exception&){return kResultFalse;}
+tresult PLUGIN_API VMProcessor::setState(IBStream* stream) try {
  if(!stream)return kResultFalse;
  IBStreamer io(stream,kLittleEndian);int32 version=0;
  if(!io.readInt32(version)||(version<1||version>8))return kResultFalse;
@@ -611,36 +680,42 @@ tresult PLUGIN_API VMProcessor::setState(IBStream* stream){
  if(version>=8&&(!readIRPath(stream,preamp)||!readIRPayload(stream,preampSource)))return kResultFalse;
  // Validate before publishing any mutation or new IR job.
  for(int i=0;i<kParameterCount;++i)next[i]=vm::clamp(next[i],0,1);
- stateMailbox.publish(next);
- {
-  std::lock_guard<std::mutex> lock(irJobMutex);
-  auto clearMic=std::make_unique<vm::StereoIRStage>();
-  auto clearPreamp=std::make_unique<vm::StereoIRStage>();
-  auto clearRev=std::make_unique<vm::StereoIRStage>();
-  micHandoff.publishLatest(clearMic);
-  preampHandoff.publishLatest(clearPreamp);
-  reverbHandoff.publishLatest(clearRev);
-  micStatePath=mic;preampStatePath=preamp;reverbStatePath=rev;
-  micStateSource=micSource;preampStateSource=preampSource;reverbStateSource=revSource;
-  micIRStatus.store(mic.empty()&&!micSource?0:1);
-  preampIRStatus.store(preamp.empty()&&!preampSource?0:1);
-  reverbIRStatus.store(rev.empty()&&!revSource?0:1);
-  micIRError.store(0);preampIRError.store(0);reverbIRError.store(0);
-  hasMicJob=hasPreampJob=hasReverbJob=true;
-  micJobPath=mic;preampJobPath=preamp;reverbJobPath=rev;
-  micJobSource=std::move(micSource);preampJobSource=std::move(preampSource);
-  reverbJobSource=std::move(revSource);
-  ++micRevision;++preampRevision;++reverbRevision;
-  const auto pending=vm::pendingIRFrames(currentSampleRate.load(std::memory_order_acquire));
-  for(int stage=0;stage<3;++stage){
-   const bool hasIR=stage==0?(!micStatePath.empty()||static_cast<bool>(micStateSource)):
-    (stage==1?(!preampStatePath.empty()||static_cast<bool>(preampStateSource)):
-              (!reverbStatePath.empty()||static_cast<bool>(reverbStateSource)));
-   lastSuccessfulIRFrames[stage].store(0,std::memory_order_release);
-   irResponseFrames[stage].store(hasIR?pending:0,std::memory_order_release);
+ try {
+  auto restored=std::make_unique<PreparedRestore>();
+  std::copy(next,next+kParameterCount,restored->parameters.begin());
+  const double hostRate=currentSampleRate.load(std::memory_order_acquire);
+  const double rate=hostRate==0.?48000.:hostRate;
+  std::array<std::string,3> paths{mic,preamp,rev};
+  std::array<vm::SharedIRSource,3> sources{micSource,preampSource,revSource};
+  for(int slot=0;slot<3;++slot){
+   std::string error;restored->stages[slot]=prepareSource(paths[slot],sources[slot],rate,slot==2,error);
+   if(!restored->stages[slot])return kResultFalse;
   }
- }
- irJobWake.notify_one();
+  {
+   std::lock_guard<std::mutex> lock(irJobMutex);
+   hasMicJob=hasPreampJob=hasReverbJob=false;
+   ++micRevision;++preampRevision;++reverbRevision;
+   micStatePath=std::move(mic);preampStatePath=std::move(preamp);reverbStatePath=std::move(rev);
+   micHandoff.discardPendingControl();preampHandoff.discardPendingControl();reverbHandoff.discardPendingControl();
+   micStateSource=sources[0];preampStateSource=sources[1];reverbStateSource=sources[2];
+   std::atomic<int32_t>* statuses[3]={&micIRStatus,&preampIRStatus,&reverbIRStatus};
+   std::atomic<int32_t>* errors[3]={&micIRError,&preampIRError,&reverbIRError};
+   for(int slot=0;slot<3;++slot){
+    const auto frames=static_cast<uint32>(restored->stages[slot]->responseFrames());
+    lastSuccessfulIRFrames[slot].store(frames);irResponseFrames[slot].store(frames);
+    statuses[slot]->store(sources[slot]?2:0);errors[slot]->store(0);
+   }
+   // Hosts may query tail immediately after setState, before process adopts
+   // the transaction. Publish a conservative active-voice bound now.
+   const bool restoredVoice=next[2]>0.f||next[3]>0.f||next[4]>0.f||next[5]>0.f||
+    next[6]>0.f||next[7]>0.f||next[8]>0.f||next[kB1Correction-kInput]>=.5f||
+    std::fabs(next[kPitch-kInput]-2.f/3.f)>1.e-5f||
+    std::fabs(next[kFormant-kInput]-4.f/7.f)>1.e-5f;
+   if(restoredVoice)voiceFiltersActive.store(true,std::memory_order_release);
+   restored->revision=stateMailbox.publish(next);
+   delete pendingRestore.exchange(restored.release(),std::memory_order_acq_rel);
+  }
+ }catch(const std::exception&){return kResultFalse;}
  return kResultOk;
-}
+}catch(const std::exception&){return kResultFalse;}
 }

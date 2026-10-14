@@ -38,7 +38,7 @@ New automatable IDs: 119 B1 Correction (ON/OFF), 120 Preamp IR Mix,
 New read-only IDs: 208/209 Preamp status/error, 210/211 input/output clipping.
 Processor state v8 appends independent preamp WAV path and original WAV
 source bytes with existing CRC checks after the complete previous v7 format.
-Old v1..v7 restores must be tested in both Processor and Controller.
+New v8 project recall is the supported verification target. Sonic compatibility with v1–v7 is not required by the owner; structural readers remain. See REPAIR-REPORT.md.
 
 ## Metering and GUI contract
 A numbered left-to-right SIGNAL route appears in the title strip.

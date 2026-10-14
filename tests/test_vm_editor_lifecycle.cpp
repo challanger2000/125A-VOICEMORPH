@@ -13,6 +13,7 @@
 #include "pluginterfaces/vst/ivstaudioprocessor.h"
 #include "pluginterfaces/vst/ivsteditcontroller.h"
 #include "pluginterfaces/vst/ivstmessage.h"
+#include "public.sdk/source/vst/hosting/parameterchanges.h"
 #include "pluginterfaces/vst/vsttypes.h"
 #include "public.sdk/source/common/memorystream.h"
 #include <algorithm>
@@ -143,6 +144,41 @@ public:
  END_DEFINE_INTERFACES(FObject)
  REFCOUNT_METHODS(FObject)
 };
+
+// Actual VSTGUI gestures now reach the host parameter queue and Processor.
+class GUIEditBridge final:public FObject,public IComponentHandler {
+ FUnknownPtr<IAudioProcessor> processor_;
+public:
+ int begins=0,performs=0,ends=0;bool failed=false;
+ explicit GUIEditBridge(IComponent* component):processor_(component){}
+ tresult PLUGIN_API beginEdit(ParamID) override {++begins;return kResultOk;}
+ tresult PLUGIN_API performEdit(ParamID id,ParamValue value) override {
+  ++performs;ParameterChanges changes(1);int32 index=0,point=0;
+  auto* queue=changes.addParameterData(id,index);
+  if(!queue||queue->addPoint(0,value,point)!=kResultOk){failed=true;return kResultFalse;}
+  ProcessData flush{};flush.numSamples=0;flush.inputParameterChanges=&changes;
+  flush.symbolicSampleSize=kSample32;flush.processMode=kRealtime;
+  const auto result=processor_->process(flush);failed|=result!=kResultOk;return result;
+ }
+ tresult PLUGIN_API endEdit(ParamID) override {++ends;return kResultOk;}
+ tresult PLUGIN_API restartComponent(int32) override {return kResultOk;}
+ OBJ_METHODS(GUIEditBridge,FObject)
+ DEFINE_INTERFACES DEF_INTERFACE(IComponentHandler) END_DEFINE_INTERFACES(FObject)
+ REFCOUNT_METHODS(FObject)
+};
+int verifyDeliveredGUIState(IComponent* component,IEditController* controller,GUIEditBridge* bridge){
+ if(!bridge||bridge->failed||bridge->begins==0||bridge->performs==0||bridge->begins!=bridge->ends)return 146;
+ MemoryStream saved;if(component->getState(&saved)!=kResultOk||saved.getSize()<96)return 147;
+ const auto* bytes=static_cast<const char*>(saved.getData());
+ for(ParamID id:{100u,101u,102u,103u,104u,105u,106u,107u,108u,109u,110u,111u,112u,113u,116u,117u,118u,119u,120u,121u}){
+  float value=0;std::memcpy(&value,bytes+4+(id-100)*4,4);
+  if(std::fabs(value-controller->getParamNormalized(id))>1e-5){
+   std::cerr<<"Native GUI -> host edit -> actual Processor state mismatch "<<id<<"\n";return 148;
+  }
+ }
+ std::cout<<"Native GUI gestures delivered to all 20 actual Processor state slots PASS\n";
+ return 0;
+}
 
 struct RequiredParam {
  ParamID id;
@@ -724,52 +760,26 @@ int awaitIRStatusWithoutAudio(IEditController* controller,int expected){
  return 136;
 }
 
-// Full controller/processor ERROR feedback without audio processing.
-// Embed a checksum-valid RIFF/WAVE envelope that is too short to decode.
-// setState validates envelope/CRC; the worker must reject the actual audio,
-// then the GUI timer must report ERROR for each of the three slots.
+// Malformed projects are rejected atomically. Worker ERROR is exercised
+// through a physical LOAD, preserving the prior accepted project state.
 int exerciseStoppedIRDecodeErrors(IComponent* component,IEditController* controller){
- std::vector<std::uint8_t> bad{'R','I','F','F',4,0,0,0,'W','A','V','E'};
- std::uint32_t crc=0xffffffffu;
- for(auto byte:bad){
-  crc^=byte;
-  for(int i=0;i<8;++i)
-   crc=(crc>>1)^(0xedb88320u&static_cast<std::uint32_t>(
-    -static_cast<std::int32_t>(crc&1u)));
- }
- crc=~crc;
- std::vector<char> state;
- auto write32=[&](std::uint32_t v){
-  for(int n=0;n<4;++n)state.push_back(static_cast<char>((v>>(n*8))&255));
- };
- auto writeFloat=[&](float f){
-  std::uint32_t v=0;std::memcpy(&v,&f,sizeof(v));write32(v);
- };
- auto path=[&](){write32(0);};
- auto blob=[&](){
-  write32(static_cast<std::uint32_t>(bad.size()));
-  write32(crc);
-  state.insert(state.end(),bad.begin(),bad.end());
- };
- write32(8);
- for(int i=0;i<23;++i)writeFloat(i<2?.5f:0.f);
- path();path();blob();blob();path();blob();
- Steinberg::MemoryStream stream(state.data(),
-                                static_cast<Steinberg::TSize>(state.size()));
- if(component->setState(&stream)!=kResultOk){
-  std::cerr<<"Malformed embedded IR test state rejected before worker\\n";
-  return 137;
+ const auto directory=std::filesystem::temp_directory_path()/"125A-VoiceMorph-IR-QA";
+ std::filesystem::create_directories(directory);
+ const auto file=directory/"invalid-riff-envelope.wav";
+ const char bad[]={'R','I','F','F',4,0,0,0,'W','A','V','E'};
+ {std::ofstream stream(file,std::ios::binary);stream.write(bad,sizeof(bad));if(!stream)return 137;}
+ FUnknownPtr<IConnectionPoint> cp(component);if(!cp)return 137;
+ const auto path=file.u8string();
+ for(int slot=0;slot<3;++slot){
+  HostMessage request;request.setMessageID("125A.LoadIR");
+  if(request.getAttributes()->setInt("slot",slot)!=kResultOk||
+     request.getAttributes()->setBinary("utf8Path",path.data(),static_cast<uint32>(path.size()))!=kResultOk||
+     cp->notify(&request)!=kResultOk)return 137;
  }
  if(const int result=awaitIRStatusWithoutAudio(controller,3))return result;
- const std::array<ParamID,3> errorIds{{206u,209u,207u}};
- for(const auto id:errorIds){
-  if(controller->getParamNormalized(id)<=0.){
-   std::cerr<<"IR worker ERROR code missing in stopped GUI "<<id<<"\\n";
-   return 138;
-  }
- }
- std::cout<<"Native stopped-transport IR ERROR with invalid embedded WAV"
-          <<" all three slots PASS\\n";
+ for(ParamID id:{206u,209u,207u})if(controller->getParamNormalized(id)<=0.)return 138;
+ std::filesystem::remove(file);
+ std::cout<<"Native stopped-transport invalid WAV LOAD preserves state and reports three ERRORs PASS\n";
  return 0;
 }
 
@@ -933,6 +943,8 @@ int probe(const std::filesystem::path& path){
    if(cp)cp->release();if(cc)cc->release();
    controller->terminate();controller->release();component->terminate();return 8;
   }
+  auto editBridge=owned(new GUIEditBridge(component.get()));
+  if(controller->setComponentHandler(editBridge)!=kResultOk)return 149;
   // Seed three portable WAV sources before opening the editor, so the
   // actual CLEAR buttons can be tested against real worker-owned IR data.
   if(const int result=checkRealProjectRecall(component.get(),controller)){
@@ -971,6 +983,7 @@ int probe(const std::filesystem::path& path){
      std::cerr<<"GUI actual mouse/scale test failure: "<<result<<"\n";
      return result;
     }
+    if(const int result=verifyDeliveredGUIState(component.get(),controller,editBridge))return result;
     if(const int result=awaitIRStatusWithoutAudio(controller,2))return result;
     if(const int result=exerciseNativeIRLoadDialogs(window)){
      std::cerr<<"Native GUI IR LOAD picker test failure "<<result<<"\\n";
@@ -993,6 +1006,7 @@ int probe(const std::filesystem::path& path){
    if(IsWindow(window)){std::cerr<<"Window remained after destroy\n";return 15;}
    std::cout<<"Editor attach/detach cycle "<<(cycle+1)<<"/"<<kCycles<<" PASS\n";
   }
+  controller->setComponentHandler(nullptr);
   cc->disconnect(cp);cp->disconnect(cc);
   cp->release();cc->release();
   if(controller->terminate()!=kResultOk||component->terminate()!=kResultOk)

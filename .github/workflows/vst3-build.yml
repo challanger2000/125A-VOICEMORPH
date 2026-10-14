@@ -3,10 +3,14 @@ on:
   workflow_dispatch:
   push:
     branches: [develop/v1.0.0]
-    paths: [vst/**, src/**, tests/**, CMakeLists.txt, .github/workflows/vst3-build.yml]
+    paths: [vst/**, src/**, tests/**, tools/**, CMakeLists.txt, .github/workflows/vst3-build.yml]
+permissions:
+  contents: read
+  actions: read
 jobs:
   build:
     runs-on: windows-2022
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Checkout pinned official VST3 SDK
@@ -25,13 +29,13 @@ jobs:
       - name: Configure
         run: cmake -S . -B build -A x64 -DBUILD_VST3=ON -DVST3_SDK_ROOT="${{ github.workspace }}/external/vst3sdk" -DSMTG_CREATE_PLUGIN_LINK=OFF
       - name: Compile
-        run: cmake --build build --config Release --target VoiceMorph test_voice test_ir test_wav test_ir_matrix test_partitioned_ir test_fft_stereo test_ir_resampler test_ir_stage test_meter_units test_ir_pipeline test_ir_file test_ir_builder test_ir_builder_stereo test_ir_handoff test_fixed_latency_ir test_ir_load_info test_pitch_formant test_pitch_chain test_pitch_realtime test_state_mailbox test_parameter_text test_parameter_cursor test_sample_format test_bus_layout test_ir_state_blob test_target_rates test_hollywood_preset test_b1_correction test_reverb_mix test_voice_bypass test_control_wiring test_voice_control_responses test_ir_tail_accounting test_vm_editor_lifecycle --parallel
+        run: cmake --build build --config Release --target VoiceMorph test_voice test_ir test_wav test_ir_matrix test_partitioned_ir test_fft_stereo test_ir_resampler test_ir_stage test_meter_units test_ir_pipeline test_ir_file test_ir_builder test_ir_builder_stereo test_ir_handoff test_fixed_latency_ir test_ir_load_info test_pitch_formant test_pitch_chain test_pitch_realtime test_state_mailbox test_parameter_text test_parameter_cursor test_sample_format test_bus_layout test_ir_state_blob test_target_rates test_hollywood_preset test_b1_correction test_reverb_mix test_voice_bypass test_control_wiring test_voice_control_responses test_ir_tail_accounting test_vm_editor_lifecycle test_vm_host test_audit_repairs --parallel 4
       - name: Unit tests
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Native packaged VST3 editor lifecycle (20 cycles)
         shell: pwsh
         run: |
-          $plugin = "build/VST3/Release/VoiceMorph.vst3"
+          $plugin = "build/VST3/Release/125A VoiceMorph.vst3"
           if (-not (Test-Path -LiteralPath $plugin)) { throw "VST3 missing" }
           & ".\\build\\Release\\test_vm_editor_lifecycle.exe" $plugin
           if ($LASTEXITCODE -ne 0) { throw "Native editor lifecycle probe failed: $LASTEXITCODE" }
@@ -48,14 +52,34 @@ jobs:
       - name: Stage installable VST3 directory
         shell: pwsh
         run: |
-          $source = "build/VST3/Release/VoiceMorph.vst3"
+          $source = "build/VST3/Release/125A VoiceMorph.vst3"
           if (-not (Test-Path -LiteralPath $source)) { throw "VST3 bundle missing: $source" }
           New-Item -ItemType Directory -Force -Path "dist" | Out-Null
           Copy-Item -LiteralPath $source -Destination "dist/125A VoiceMorph.vst3" -Recurse -Force
-          Rename-Item -LiteralPath "dist/125A VoiceMorph.vst3/Contents/x86_64-win/VoiceMorph.vst3" -NewName "125A VoiceMorph.vst3"
-          if (-not (Test-Path -LiteralPath "dist/125A VoiceMorph.vst3/Contents/x86_64-win/125A VoiceMorph.vst3")) {
-            throw "Installable VST3 binary missing from dist/125A VoiceMorph.vst3"
-          }
+      - name: Validate exact staged package and native audio recall
+        shell: pwsh
+        run: |
+          python tools/check-vst3-package.py "dist/125A VoiceMorph.vst3"
+          if ($LASTEXITCODE -ne 0) { throw "Shipping package structure mismatch" }
+          $validator = Get-ChildItem build -Recurse -File -Filter "validator.exe" | Select-Object -First 1
+          if (-not $validator) { throw "Pinned SDK validator missing" }
+          & $validator.FullName "dist/125A VoiceMorph.vst3"
+          if ($LASTEXITCODE -ne 0) { throw "Staged package validation failed" }
+          & ".\build\Release\test_vm_host.exe" "dist/125A VoiceMorph.vst3"
+          if ($LASTEXITCODE -ne 0) { throw "Staged module audio/state integration failed" }
+      - name: Full independent 125A Tester on this build's shipping package
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./tools/run-full-qa.ps1 -PluginPath "dist/125A VoiceMorph.vst3"
+      - name: Archive current shipping-package QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoiceMorph-125A-Full-QA-Reports
+          path: build/full-qa-reports/
+          if-no-files-found: warn
+          retention-days: 30
       - name: Package VST3 development build
         uses: actions/upload-artifact@v4
         with:

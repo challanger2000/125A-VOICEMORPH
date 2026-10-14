@@ -126,6 +126,13 @@ Metrics profile(int rate,bool dense=false,int blockSize=128) {
   }
   float lastL=0,lastR=0;
   for(int n=0;n<blockSize;++n){
+   // Exercise all smoothed Voice controls under dense sample-by-sample
+   // automation, not only the historically tested pitch switches.
+   vm::Parameters automation;
+   const float amount=(block%2?1.f:0.f)*.5f;
+   automation.denasal=automation.chest=automation.warmth=amount;
+   automation.grit=automation.presence=automation.compression=automation.lowCut=amount;
+   left.setParameters(automation);right.setParameters(automation);
    chain.process(a[n],b[n],lastL,lastR,left,right,micPtr,revPtr,
                  true,block%91>=75,&spectral,preampPtr,&correction);
   }

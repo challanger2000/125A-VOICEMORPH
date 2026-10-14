@@ -26,9 +26,11 @@ All algorithms and parameter defaults are **provisional until measured**. Pitch 
 - All new GUI work: static design and approved master assets first, then VSTGUI.
 - Technical scope and test gates: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/QA-PLAN.md](docs/QA-PLAN.md).
 
-**Status (2026-10-12):** Active VST3 development build; automated Windows CI compiles the plugin and runs 47 Steinberg Validator checks plus DSP/functional and allocation/CPU stress probes. The processor contains spectral pitch/formant shifting, voice-tone/dynamics, microphone, preamp and reverb IR load/clear, partitioned convolution, gain/peak telemetry and a development VSTGUI with 100/150% zoom. This is **not** the final approved GUI or a release. Host GUI attach/reopen, level-matched real-speech listening, long-term DAW operation, IR state portability and the final 125A release audit are not yet signed off. Check the latest GitHub Actions run for exact passing-test counts. 
-- Normal audio arrangements: Mono→Mono, Mono→Stereo, Stereo→Stereo. Host buffers: 32-bit and 64-bit floating point (internal DSP remains float).
-- Project state v7 embeds the **original WAV bytes** for both IR slots, while retaining source paths as optional provenance/fallback for v5-v6 projects. Older state v1-v6 remains readable. The embedded recall and corruption guards require successful CI and Studio One restore tests before claiming portable DAW release behavior.
+**Status (2026-10-14):** Local repairs address IR lifecycle/recall, automation, smoothing, gain, host parameter mappings and final-package QA. The actual headless Linux VST3 passes 35 CTest checks and 47 SDK validator checks. Windows GUI, Studio One and authoritative 125A Full QA still require execution. See [repair details and evidence](docs/REPAIR-REPORT.md).
+
+- Supported arrangements: Mono→Mono, Mono→Stereo, Stereo→Stereo; float32/float64 host buffers with internal float DSP.
+- State **v8** embeds original WAV bytes for **all three** IR slots. Restore validates and prepares the entire transaction before acceptance. New-project recall is tested against the actual module; Windows/Studio-One portability is not yet signed off.
+- Approved sound reference: commit `341fc8b`, build #38622391579, version 0.1.0. Sonic compatibility with old v1–v7 projects is not required.
 
 ## Personal use / target rates
 

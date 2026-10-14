@@ -58,6 +58,8 @@ inline bool decodeWave(const std::uint8_t* bytes,std::size_t size,WaveIR& result
  if(audioSize==0||audioSize%align)return fail("Invalid WAV sample size");
  if(audioSize>maxBytes)return fail("IR exceeds memory budget");
  const auto samples=audioSize/bytesPerSample;
+ if(audioSize/align>std::size_t(sampleRate)*30||samples>128ull*1024*1024/sizeof(float))
+  return fail("IR exceeds decoded memory budget or 30 second duration");
  std::vector<float> decoded;decoded.reserve(samples);
  for(std::size_t i=0;i<samples;++i){
   const auto* p=audio+i*bytesPerSample;float v=0;

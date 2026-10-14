@@ -1,0 +1,11 @@
+# Ergänzungen zu zentralen Engineering-Guardrails
+
+Diese aus den VoiceMorph-Reparaturen abgeleiteten Regeln ergänzen die gelesenen zentralen Vorgaben. Diese Datei ist ein konkreter Vorschlag für `125A-Engineering/ENGINEERING-GUARDRAILS.md`; das zentrale Repository wurde hier nicht verändert.
+
+1. VST3-Namen im SDK-Paketziel festlegen. Keine Reparatur des Namens ausschließlich durch spätere Umbenennung des äußeren Bundles. Architekturmodul und Bundle gemeinsam prüfen.
+2. QA des endgültigen installierbaren Pakets mit Commit-/Binary-Provenienz ausführen. Alte Artefakte und alte PASS-Berichte sind kein Nachweis für den aktuellen Quellstand. Leere oder wiederverwendete Reportverzeichnisse dürfen keinen PASS erzeugen.
+3. Assertions in allen Release-Testzielen explizit aktivieren. Ein erwarteter Negativtest muss bestätigen, dass die Prüfungen tatsächlich auslösen. Produktionsziele behalten ihre normalen Release-Flags.
+4. Retired-Objekte auch ohne weiteren Benutzerauftrag auf dem Control-/Worker-Thread freigeben. Audio-Veröffentlichung, Verbrauch und Freigabe besitzen klar getrennte Eigentümerschaft.
+5. Projektzustände samt IRs vollständig validieren und vorbereiten, bevor sie als gemeinsame Transaktion angenommen werden. Inaktive Setup-/Sampleratenwechsel dürfen weder kalte erste Offline-Blöcke noch verlorene laufende Benutzeraufträge erzeugen.
+6. IR-Sampleratenkonvertierung muss Transferpegel berücksichtigen. Keine pauschale Peak-Normalisierung von Farb-IRs als Ersatz für korrekte Tap-Dichte-Skalierung. Grenzen eines endlichen SRC-Kernels dokumentieren.
+7. GUI-, Validator-, DSP- und echte Host-Nachweise getrennt benennen. Ein vorbereiteter Windows-Test ist kein bestandenes Windows-Ergebnis. Ein synthetischer Referenzvergleich ersetzt kein pegelgleiches Hören mit der Nutzerstimme.

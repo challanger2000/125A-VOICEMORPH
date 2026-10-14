@@ -24,6 +24,9 @@ public:
   WaveIR wave;
   SharedIRSource source;
   if(!loadWaveIRFile(path,wave,error,kMaxEmbeddedIRBytes,originalBytes?&source:nullptr))return {};
+  if(estimateIRMemory(wave.frames(),wave.channels,wave.sampleRate,sampleRate)>kIRStageMemoryBudget){
+   error="IR exceeds prepared memory budget";return {};
+  }
   auto stage=std::make_unique<StereoIRStage>();
   if(!stage->prepare(wave,sampleRate,predelay,reverbEnergyNormalize)){
    error="Cannot prepare IR for host sample rate";return {};

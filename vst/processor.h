@@ -10,6 +10,7 @@
 #include "B1Correction.h"
 #include "IRTailAccounting.h"
 #include "PitchFormantDSP.h"
+#include "RealtimeGuard.h"
 #include "ParameterStateMailbox.h"
 #include <string>
 #include <memory>
@@ -68,6 +69,7 @@ private:
  bool stopIRWorker=false;
  bool hasMicJob=false,hasPreampJob=false,hasReverbJob=false;
  std::string micJobPath,preampJobPath,reverbJobPath;
+ std::array<std::string,3> requestedIRPaths{};
  std::string micStatePath,preampStatePath,reverbStatePath;
  vm::SharedIRSource micJobSource,preampJobSource,reverbJobSource;
  vm::SharedIRSource micStateSource,preampStateSource,reverbStateSource;
@@ -75,6 +77,14 @@ private:
  std::atomic<int32_t> micIRStatus{0},preampIRStatus{0},reverbIRStatus{0};
  std::atomic<int32_t> micIRError{0},preampIRError{0},reverbIRError{0};
  std::uint64_t micRevision=0,preampRevision=0,reverbRevision=0;
+ struct PreparedRestore {
+  std::array<float,kParameterCount> parameters{};
+  std::array<std::unique_ptr<vm::StereoIRStage>,3> stages;
+  std::uint64_t revision=0;
+ };
+ std::atomic<PreparedRestore*> pendingRestore{nullptr},retiredRestore{nullptr};
+ bool startedAudio=false;
+ bool adoptRestoreAudio() noexcept;
  void irWorkerLoop();
  void queueIRJob(std::string path,int slot);
  void apply() noexcept;

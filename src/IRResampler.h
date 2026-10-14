@@ -8,7 +8,8 @@ namespace vm {
 // Off-audio-thread, bandlimited windowed-sinc IR conversion. 48 taps per output.
 // Applies lowpass anti-aliasing when downsampling. Never used in process().
 inline bool resampleIR(const WaveIR& src,unsigned targetRate,WaveIR& dst,
-                       std::size_t maxFrames=384000u*30u) {
+                       std::size_t maxFrames=384000u*30u,
+                       bool preserveTransfer=true) {
  if(src.channels<1||src.channels>4||src.sampleRate<8000||targetRate<8000||
     targetRate>384000||src.frames()==0||
     src.interleaved.size()!=src.frames()*src.channels)return false;
@@ -48,7 +49,9 @@ inline bool resampleIR(const WaveIR& src,unsigned targetRate,WaveIR& dst,
     if(index>=0&&static_cast<std::size_t>(index)<src.frames())
      sum+=weights[j+radius]*src.interleaved[static_cast<std::size_t>(index)*src.channels+ch];
    }
-   next.interleaved[n*src.channels+ch]=static_cast<float>(sum);
+   // A discrete convolution sums taps, unlike normal audio playback SRC.
+   // Compensate the new sample density: H(0)=sum(h) stays invariant.
+   next.interleaved[n*src.channels+ch]=static_cast<float>(sum/(preserveTransfer?ratio:1.));
   }
  }
  dst=std::move(next);return true;

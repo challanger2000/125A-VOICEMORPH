@@ -1,5 +1,14 @@
 # VOICEMORPH – Control-to-DSP Traceability Audit (development, 2026-10-13)
 
+## Aktualisierung 14.10.2026
+
+Die folgende Tabelle ist die historische statische Auditaufnahme vom 13.10.
+Der neue tatsächliche Modul-Audio-/State-Test ergänzt Controller-Mappings,
+Host-Parameterqueues, Recall und Meter. Das ist kein Nachweis echter Mausbedienung.
+Der Windows-Editor-Test wurde um die Weiterleitung tatsächlicher GUI-Edits an
+den Processor ergänzt, aber lokal noch nicht ausgeführt. Aktueller Stand und
+präzise Grenzen: [REPAIR-REPORT.md](REPAIR-REPORT.md).
+
 ## Audit classification
 - **STATIC TRACED**: UIDESC tag, Controller registration/event dispatch, Processor
   branch and primary downstream DSP target exist. This does not prove real mouse

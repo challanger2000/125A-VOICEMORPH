@@ -10,6 +10,31 @@
 #include <string>
 namespace vm {
 inline bool isVoiceControl(int id) noexcept {return id>=100&&id<=122;}
+inline double voiceNormalizedToPlain(int id,double n) noexcept {
+ if(!std::isfinite(n))n=0.;n=std::clamp(n,0.,1.);
+ if(id==100||id==101)return (n-.5)*24.;
+ if((id>=102&&id<=107)||id==110||id==112||id==120)return n*100.;
+ if(id==111||id==113||id==121)return n*400.;
+ if(id==108)return n==0.?0.:35.+165.*n;
+ if(id==115||id==116||id==122)return n*2000.;
+ if(id==117)return n*18.-12.;
+ if(id==118)return n*14.-8.;
+ if(id==109||id==114||id==119)return n>=.5?1.:0.;
+ return n;
+}
+inline double voicePlainToNormalized(int id,double p) noexcept {
+ if(!std::isfinite(p))return 0.;
+ double n=p;
+ if(id==100||id==101)n=p/24.+.5;
+ else if((id>=102&&id<=107)||id==110||id==112||id==120)n=p/100.;
+ else if(id==111||id==113||id==121)n=p/400.;
+ else if(id==108)n=p<=0.?0.:std::max(1.e-6,(p-35.)/165.);
+ else if(id==115||id==116||id==122)n=p/2000.;
+ else if(id==117)n=(p+12.)/18.;
+ else if(id==118)n=(p+8.)/14.;
+ else if(id==109||id==114||id==119)n=p>=.5?1.:0.;
+ return std::clamp(n,0.,1.);
+}
 inline bool formatVoiceControl(int id,double normalized,char* buf,std::size_t capacity) noexcept {
  if(!buf||capacity==0||!isVoiceControl(id)||!std::isfinite(normalized))return false;
  const double n=std::clamp(normalized,0.,1.);

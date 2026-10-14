@@ -2,6 +2,7 @@
 #include "WaveIR.h"
 #include "IRResampler.h"
 #include "PartitionedIR.h"
+#include "IRMemoryBudget.h"
 #include <array>
 #include <algorithm>
 #include <vector>
@@ -18,8 +19,10 @@ class FFTStereoIR {
 public:
  bool prepare(const WaveIR& ir,double hostRate,bool reverbEnergyNormalize=false) {
   if(ir.channels!=1&&ir.channels!=2&&ir.channels!=4)return false;
-  if(ir.sampleRate==0||hostRate<8000||hostRate>384000)return false;
+  if(ir.sampleRate==0||!std::isfinite(hostRate)||hostRate<8000||hostRate>384000)return false;
   if(ir.frames()==0||ir.interleaved.size()!=ir.frames()*ir.channels)return false;
+  if(estimateIRMemory(ir.frames(),ir.channels,ir.sampleRate,hostRate)>kIRStageMemoryBudget)
+   return false;
   WaveIR converted;
   if(!resampleIR(ir,static_cast<unsigned>(std::lround(hostRate)),converted,
                  static_cast<std::size_t>(hostRate*30.0)))return false;

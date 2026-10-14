@@ -1,8 +1,10 @@
 #pragma once
 #include <algorithm>
 #include <atomic>
+#include <array>
 #include <cmath>
 #include <cstddef>
+#include "SmoothValue.h"
 namespace vm {
 constexpr double pi=3.14159265358979323846;
 inline float gain(float db) noexcept {return std::pow(10.f,db/20.f);}
@@ -21,7 +23,10 @@ struct Biquad {
   b0=(1+co)*.5*inv;b1=-(1+co)*inv;b2=b0;
   a1=-2*co*inv;a2=(1-alpha)*inv;
  }
- float run(float x) noexcept {double y=b0*x+z1;z1=b1*x-a1*y+z2;z2=b2*x-a2*y;if(!std::isfinite(y)){reset();return 0;}return static_cast<float>(y);}
+ float run(float x) noexcept {double y=b0*x+z1;z1=b1*x-a1*y+z2;z2=b2*x-a2*y;
+  if(!std::isfinite(y)){reset();return 0;}
+  if(std::fabs(z1)<1e-30)z1=0;if(std::fabs(z2)<1e-30)z2=0;
+  return static_cast<float>(y);}
 };
 struct Parameters {
  float inputDb=0,outputDb=0,denasal=0,chest=0,warmth=0,grit=0,presence=0,compression=0,lowCut=0;
@@ -40,6 +45,12 @@ class VoiceDSP {
  float detectorAttack=0,detectorRelease=0;
  Meters meter{};
  unsigned detectorCounter=0;
+ Parameters target_{};
+ std::array<SmoothValue,9> controls_;
+ bool started_=false;
+ static std::array<float,9> values(const Parameters& p) noexcept {
+  return {p.inputDb,p.outputDb,p.denasal,p.chest,p.warmth,p.grit,p.presence,p.compression,p.lowCut};
+ }
  static void peak(std::atomic<float>& a,float val) noexcept {
   float v=a.load(std::memory_order_relaxed);
   while(v<val&&!a.compare_exchange_weak(v,val,std::memory_order_relaxed)){}
@@ -64,18 +75,41 @@ public:
  VoiceDSP(){update();}
  void prepare(double sr) noexcept {
   rate=(sr>=8000&&sr<=384000)?sr:48000;
+  p=target_;
   for(int i=0;i<3;++i){nose[i].reset();nasalDetector[i].reset();detectorEnvelope[i]=0;denasalReduction[i]=0;}
   body.reset();warm.reset();air.reset();lowCutFilter.reset();envelope=hpX=hpY=fullEnvelope=0;
   detectorCounter=0;update();meter.reset();
+  started_=false;
+  for(auto& control:controls_)control.prepare(rate);
+  const auto initial=values(target_);
+  for(std::size_t i=0;i<controls_.size();++i)controls_[i].reset(initial[i]);
  }
- void setParameters(const Parameters& next) noexcept {p=next;update();}
+ void setParameters(const Parameters& next) noexcept {
+  target_=next;const auto v=values(next);
+  for(std::size_t i=0;i<controls_.size();++i){
+   if(started_)controls_[i].set(v[i]);else controls_[i].reset(v[i]);
+  }
+  if(!started_){p=next;update();}
+ }
  const Meters& meters() const noexcept {return meter;}
  void resetMeters() noexcept {meter.reset();}
  float processSample(float s) noexcept {
+  started_=true;
+  bool changing=false;for(const auto& control:controls_)changing|=control.moving();
+  if(changing){
+   auto& c=controls_;
+   p={c[0].next(),c[1].next(),c[2].next(),c[3].next(),c[4].next(),
+      c[5].next(),c[6].next(),c[7].next(),c[8].next()};
+   update();
+  }
   if(!std::isfinite(s))s=0;
   const float input=s*inGain;peak(meter.inputPeak,std::fabs(input));
   // Second-order Butterworth (12 dB/oct); 0% bypasses the filter entirely.
-  float x=p.lowCut<=0.f?input:lowCutFilter.run(input);
+  // Keep the OFF filter warm and bridge its first displayed percent.
+  // Otherwise even a smoothed positive value abruptly enables a 35-Hz HPF.
+  const float cut=lowCutFilter.run(input);
+  const float cutMix=clamp(p.lowCut*100.f,0.f,1.f);
+  float x=cutMix>=1.f?cut:(cutMix<=0.f?input:input+(cut-input)*cutMix);
   // Detector compares nasal-band emphasis to broadband energy; smoothed and
   // recalculated every 128 samples to avoid audio-rate coefficient modulation.
   const float broadband=std::fabs(x);
@@ -94,7 +128,14 @@ public:
   for(auto& filter:nose)x=filter.run(x);
   x=air.run(warm.run(body.run(x)));
   const float drive=2*clamp(p.grit,0,1);
-  if(drive>0){float d=1+drive;x=std::tanh(x*d)/std::tanh(d);}
+  if(drive>0){
+   const float d=1+drive;
+   const float saturated=std::tanh(x*d)/std::tanh(d);
+   // Preserve the reference curve from 1% upward. The first displayed
+   // percent bridges the former discontinuity continuously from true OFF.
+   if(p.grit>=.01f)x=saturated;
+   else x+=(p.grit*100.f)*(saturated-x);
+  }
   float v=std::fabs(x);float coeff=v>envelope?attack:release;envelope=coeff*envelope+(1-coeff)*v;
   const float threshold=gain(-18);
   const float reduction=envelope>threshold?std::pow(threshold/envelope,.5f*clamp(p.compression,0,1)):1.f;

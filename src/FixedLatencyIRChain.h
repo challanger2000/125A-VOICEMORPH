@@ -44,30 +44,41 @@ class FixedLatencyIRChain {
  StereoVariableDelay pitchDry_,voiceDry_;
  std::size_t pitchLatency_=0;
  float bypassAmount_=0.f,pitchAmount_=0.f;
+ SmoothValue inputGainSmooth_,outputGainSmooth_;
  float inputGain_=1.f,outputGain_=1.f;
+ bool started_=false;
  static void stage(StereoIRStage* ir,StereoFixedDelay<128>& empty,
                    float& l,float& r) noexcept {
   float plainL=0.f,plainR=0.f;
   empty.process(l,r,plainL,plainR);
-  if(ir&&ir->ready())ir->process(l,r,l,r);
+  if(ir&&ir->processingReady())ir->process(l,r,l,r);
   else{l=plainL;r=plainR;}
  }
 public:
  static constexpr std::size_t kLatency=384;
- FixedLatencyIRChain(){preparePitchLatency(0);}
+ FixedLatencyIRChain(){prepareGains(48000.);preparePitchLatency(0);}
  void setInputOutputGains(float inputDb,float outputDb) noexcept {
-  inputGain_=gain(clamp(inputDb,-12.f,12.f));
-  outputGain_=gain(clamp(outputDb,-12.f,12.f));
+  inputGainSmooth_.set(gain(clamp(inputDb,-12.f,12.f)));
+  outputGainSmooth_.set(gain(clamp(outputDb,-12.f,12.f)));
+  if(!started_){inputGainSmooth_.reset(inputGainSmooth_.target());outputGainSmooth_.reset(outputGainSmooth_.target());}
+ }
+ void prepareGains(double rate) noexcept {
+  inputGainSmooth_.prepare(rate);outputGainSmooth_.prepare(rate);started_=false;
+  inputGainSmooth_.reset(1.f);outputGainSmooth_.reset(1.f);
  }
  void preparePitchLatency(std::size_t samples){
+  started_=false;
   pitchLatency_=samples;
   pitchDry_.prepare(samples);
   voiceDry_.prepare(samples);
   micEmpty_.reset();preampEmpty_.reset();reverbEmpty_.reset();
   bypassAmount_=pitchAmount_=0.f;
  }
+ float inputGain()const noexcept{return inputGain_;}
  std::size_t latencySamples()const noexcept{return kLatency+pitchLatency_;}
  void reset() noexcept {
+  started_=false;
+  inputGainSmooth_.reset(inputGainSmooth_.target());outputGainSmooth_.reset(outputGainSmooth_.target());
   micEmpty_.reset();preampEmpty_.reset();reverbEmpty_.reset();
   pitchDry_.reset();voiceDry_.reset();
   bypassAmount_=pitchAmount_=0.f;
@@ -86,6 +97,8 @@ public:
   (void)microphonePre; // Deprecated control: fixed MIC->PREAMP route.
   constexpr float step=1.f/128.f;
   bypassAmount_=std::clamp(bypassAmount_+(bypass?step:-step),0.f,1.f);
+  started_=true;
+  inputGain_=inputGainSmooth_.next();outputGain_=outputGainSmooth_.next();
   l*=inputGain_;r*=inputGain_;
   if(correction)correction->process(l,r);
   stage(mic,micEmpty_,l,r);
