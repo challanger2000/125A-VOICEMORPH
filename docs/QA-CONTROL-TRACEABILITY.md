@@ -403,3 +403,27 @@ Native VST3 hosting test of `IComponent::setState/getState` and `IEditController
 - No VoiceDSP, mix algorithms, B1 correction, preset tone, resources or parameter IDs were modified; this is a QA-only update.
 
 **Still unverified:** GUI LOAD file chooser with actual supported/invalid user WAV files (3 slots); unambiguous loaded IR filenames in GUI; LIVE `READY/ERROR` refresh when audio processing is stopped (parameter reports currently occur via positive-length process blocks); actual DAW project automation and visual acceptance in Studio One.
+
+
+## Independent release-gate source re-audit (2026-10-14)
+
+**Scope:** current `develop/v1.0.0` source inspection of `vst/controller.cpp`, `vst/processor.cpp`, `vst/processor.h`, native `tests/test_vm_editor_lifecycle.cpp`, `vst/resource/voicemorph.uidesc`, and the existing QA evidence. This is source review, **not** a new successful Windows build or Studio One acceptance.
+
+### Confirmed code-level release blockers
+
+1. **Stopped-transport status:** `VMProcessor::irWorkerLoop()` updates atomic `micIRStatus/preampIRStatus/reverbIRStatus` and error codes. `VMProcessor::process()` publishes these as read-only output parameters only for `numSamples>0`. Its `numSamples<=0` branch returns before publishing telemetry. The Controller presently lacks a separate `notify()` receiver for IR status and filenames. Consequently no reliable processor-worker-to-editor READY/ERROR update without audio processing is established. Fix must follow the Steinberg component/controller messaging contract, with no blocking/memory allocation on the audio callback.
+
+2. **LOAD dialog harness has limited evidence:** `exerciseNativeIRLoadDialogs` only opens and cancels the three native pickers. It does not select real valid/invalid WAVs, check whether the intended slot changed, measure error status, or verify filename display. Its observer assumes an owned top-level `#32770` dialog: COM/common-item dialogs and host window ownership can differ; its five-second fallback is not proof against a modal hang. Run the actual compiled Windows harness and avoid a PASS claim until a bounded shutdown and real-file select/restore tests are demonstrated.
+
+3. **Filename feedback:** existing GUI exposes status/error fields but not a per-slot unambiguous loaded source WAV filename. Portable embedded IR data can legitimately have no source pathname; UI must distinguish “embedded IR restored” from an external name instead of inventing provenance.
+
+4. **Independent host:** prior 125A Plugin Tester 46/46 success belongs to an earlier exact binary. After code changes re-run against the actual latest build, plus Studio One saved-project/automation replay, offline reverb tail and GUI legibility acceptance. Historical PASS must not be propagated to a new commit.
+
+### Required next verified test sequence
+
+- Native 3× LOAD: open each chooser, select a unique supported WAV, prove only its corresponding slot's serialized original payload changes; stop processing throughout. Independently test cancel, invalid RIFF/WAVE bytes, missing file, replacement, and clear.
+- Status: assert EMPTY→LOADING→READY, failing selection→ERROR with last good sounding IR preserved, then CLEAR→EMPTY. Prove Controller/VSTGUI status visible while no `process()` is called; attach/detach and preset/project restore must remain consistent.
+- Maintain 47/47 Steinberg, 32/32 unit tests (or current actual count), 20/20 native editor cycles, 100/150% controls, realtime allocation/deadline evidence and separate 125A Plugin Tester on the exact new VST3 binary.
+- Final real Studio One save/reopen, automation, 44.1/48 kHz, meter/status and spoken-word listening are independently required.
+
+**Current classification:** source findings VERIFIED; native LOAD, stopped-transport status, visible filenames, post-change CI and DAW acceptance **NOT VERIFIED**. **FINAL BLOCKED.** Do not change sonic DSP while repairing these host/UI gaps.
